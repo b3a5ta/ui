@@ -18,7 +18,7 @@ pub fn MatchResults() -> Element {
                     class: "flex items-center justify-between mb-4",
                     button {
                         class: "p-2 -ml-2 rounded-full hover:bg-primary/10 active:bg-primary/20 transition-colors text-primary",
-                        onclick: move |_| navigator.go_back(),
+                        onclick: move |_| { navigator.go_back(); },
                         span { class: "material-icons-round text-3xl", "chevron_left" }
                     }
                     h1 { class: "text-xl font-bold text-center flex-1 pr-8", "Match Results" }
@@ -74,7 +74,7 @@ pub fn MatchResults() -> Element {
                 // Card 1: Top Match
                 div {
                     class: "bg-surface-light dark:bg-surface-dark rounded-xl p-4 shadow-card border-l-4 border-primary relative overflow-hidden group active:scale-[0.98] transition-transform duration-200",
-                    onclick: move |_| navigator.push(Route::CandidateDetails { id: "1".to_string() }),
+                    onclick: move |_| { navigator.push(Route::CandidateDetails { id: "1".to_string() }); },
 
                     // Selection Checkbox
                     div {

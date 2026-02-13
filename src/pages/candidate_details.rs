@@ -20,7 +20,7 @@ pub fn CandidateDetails(id: String) -> Element {
                     class: "sticky top-0 z-30 bg-surface-light/90 dark:bg-surface-dark/90 backdrop-blur-md border-b border-primary/10 px-4 pt-12 pb-4 flex items-center justify-between",
                     button {
                         class: "p-2 -ml-2 rounded-full hover:bg-primary/10 text-gray-600 dark:text-gray-300 transition-colors",
-                        onclick: move |_| navigator.go_back(),
+                        onclick: move |_| { navigator.go_back(); },
                         span { class: "material-icons-round text-2xl", "arrow_back" }
                     }
                     h1 { class: "text-lg font-bold text-gray-900 dark:text-white", "Candidate Details" }
@@ -73,7 +73,7 @@ pub fn CandidateDetails(id: String) -> Element {
                         }
                         button {
                             class: "col-span-1 bg-surface-light dark:bg-surface-dark text-primary border border-primary/20 hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors",
-                            onclick: move |_| navigator.push(Route::Interactions {}), // Link to Interactions
+                            onclick: move |_| { navigator.push(Route::Interactions {}); }, // Link to Interactions
                             span { class: "material-icons-round text-2xl", "mail_outline" }
                         }
                     }
@@ -84,7 +84,7 @@ pub fn CandidateDetails(id: String) -> Element {
                         button { class: "flex-1 py-2 text-sm font-semibold rounded-md bg-primary text-white shadow-sm transition-all", "Info" }
                         button {
                             class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors",
-                            onclick: move |_| navigator.push(Route::Interactions {}), // Link to History
+                            onclick: move |_| { navigator.push(Route::Interactions {}); }, // Link to History
                             "History"
                         }
                         button { class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors", "Notes" }

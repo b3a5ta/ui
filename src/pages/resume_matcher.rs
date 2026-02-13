@@ -51,7 +51,7 @@ pub fn ResumeMatcher() -> Element {
                         button { class: "flex-1 py-2 px-3 text-gray-500 dark:text-gray-400 font-medium text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-700 transition-all text-center", "Job Desc" }
                         button {
                             class: "flex-1 py-2 px-3 text-gray-500 dark:text-gray-400 font-medium text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-700 transition-all text-center",
-                            onclick: move |_| navigator.push(Route::MatchResults {}), // Link to Match Results
+                            onclick: move |_| { navigator.push(Route::MatchResults {}); }, // Link to Match Results
                             "Match"
                         }
                     }

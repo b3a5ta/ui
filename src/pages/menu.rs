@@ -141,7 +141,7 @@ pub fn Menu() -> Element {
                         class: "pt-4 pb-8",
                         button {
                             class: "w-full bg-surface-light dark:bg-surface-dark border border-red-100 dark:border-red-900/30 text-red-500 font-semibold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 active:scale-[0.98] transition-all shadow-sm",
-                            onclick: move |_| navigator.push(Route::Login {}),
+                            onclick: move |_| { navigator.push(Route::Login {}); },
                             span { class: "material-icons-round text-xl", "logout" }
                             "Log Out"
                         }

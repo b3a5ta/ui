@@ -22,7 +22,7 @@ pub fn Opportunities() -> Element {
                         class: "flex items-center justify-between mb-4",
                         button {
                             class: "p-2 -ml-2 rounded-full hover:bg-gray-50 text-slate-500 transition-colors",
-                            onclick: move |_| navigator.go_back(),
+                            onclick: move |_| { navigator.go_back(); },
                             span { class: "material-icons text-2xl", "arrow_back_ios_new" }
                         }
                         div {

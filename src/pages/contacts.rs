@@ -5,7 +5,7 @@ use crate::Route;
 
 #[component]
 pub fn Contacts() -> Element {
-    let navigator = use_navigator();
+    let _navigator = use_navigator();
 
     rsx! {
         div {

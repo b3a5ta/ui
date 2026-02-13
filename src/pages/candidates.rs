@@ -2,10 +2,20 @@
 
 use dioxus::prelude::*;
 use crate::Route;
+use crate::components::skeleton::Skeleton;
 
 #[component]
 pub fn Candidates() -> Element {
     let navigator = use_navigator();
+    let mut is_loading = use_signal(|| true);
+
+    // Simulate data loading
+    use_future(move || async move {
+        // In a real app, this would be an API call
+        // For demonstration, we wait for 2 seconds
+        gloo_timers::future::TimeoutFuture::new(2000).await;
+        is_loading.set(false);
+    });
 
     rsx! {
         div {
@@ -71,160 +81,188 @@ pub fn Candidates() -> Element {
                 div {
                     class: "flex-1 overflow-y-auto px-6 pb-24 space-y-4 no-scrollbar",
 
-                    // Candidate Card 1
-                    div {
-                        class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        onclick: move |_| navigator.push(Route::CandidateDetails { id: "1".to_string() }),
-                        div { class: "absolute w-1 h-full left-0 top-0 bg-yellow-400" } // Status Indicator Line
-                        div {
-                            class: "relative",
-                            img {
-                                alt: "Portrait of Sarah Jenkins",
-                                class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
-                                src: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkXAMJQMHvk2U90iKCAXVyN8NSiyGH-JDg28u-_QzQymD5riLAX1PBm5bR6VVaJajGJ2MsVw9gUSxXFcPiu7WBfce6mUtizbm-IWbGtBulGw3_jvKJg78Pk6LTp8tescIy3rO51StMFCJfyBoKBTTORdQQ78KihvT23sIosP-QjRdQJoVYj4Bs6aCqpv3spAj-4ZUvgp3lcIdPv5fJAhimRUzacOCwHaBhw1cM4t8PGs4Pb1SjQj7UpXk2EMILMe1mCwX25QWgaRmt"
-                            }
+                    if is_loading() {
+                        // Skeleton Loaders
+                        for _ in 0..5 {
                             div {
-                                class: "absolute -bottom-1 -right-1 bg-yellow-400 text-[10px] text-white font-bold px-1.5 py-0.5 rounded-md border-2 border-white dark:border-background-dark",
-                                "4.8"
+                                class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm flex items-center gap-4 relative overflow-hidden",
+                                div { class: "absolute w-1 h-full left-0 top-0 bg-gray-200 dark:bg-gray-700 animate-pulse" }
+                                div {
+                                    class: "relative",
+                                    Skeleton { width: "w-14", height: "h-14", class: "rounded-xl" }
+                                }
+                                div {
+                                    class: "flex-1 min-w-0 space-y-2",
+                                    div {
+                                        class: "flex justify-between items-start",
+                                        Skeleton { width: "w-32", height: "h-5", class: "rounded" }
+                                        Skeleton { width: "w-20", height: "h-5", class: "rounded-lg" }
+                                    }
+                                    Skeleton { width: "w-24", height: "h-4", class: "rounded" }
+                                    div {
+                                        class: "flex items-center gap-2",
+                                        Skeleton { width: "w-16", height: "h-3", class: "rounded" }
+                                        Skeleton { width: "w-16", height: "h-3", class: "rounded" }
+                                    }
+                                }
                             }
                         }
+                    } else {
+                        // Candidate Card 1
                         div {
-                            class: "flex-1 min-w-0",
+                            class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
+                        onclick: move |_| { navigator.push(Route::CandidateDetails { id: "1".to_string() }); },
+                            div { class: "absolute w-1 h-full left-0 top-0 bg-yellow-400" } // Status Indicator Line
                             div {
-                                class: "flex justify-between items-start",
-                                h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Sarah Jenkins" }
-                                span { class: "text-xs font-semibold text-yellow-600 bg-yellow-50 dark:bg-yellow-900/30 dark:text-yellow-200 px-2 py-1 rounded-lg", "Interviewing" }
+                                class: "relative",
+                                img {
+                                    alt: "Portrait of Sarah Jenkins",
+                                    class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
+                                    src: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkXAMJQMHvk2U90iKCAXVyN8NSiyGH-JDg28u-_QzQymD5riLAX1PBm5bR6VVaJajGJ2MsVw9gUSxXFcPiu7WBfce6mUtizbm-IWbGtBulGw3_jvKJg78Pk6LTp8tescIy3rO51StMFCJfyBoKBTTORdQQ78KihvT23sIosP-QjRdQJoVYj4Bs6aCqpv3spAj-4ZUvgp3lcIdPv5fJAhimRUzacOCwHaBhw1cM4t8PGs4Pb1SjQj7UpXk2EMILMe1mCwX25QWgaRmt"
+                                }
+                                div {
+                                    class: "absolute -bottom-1 -right-1 bg-yellow-400 text-[10px] text-white font-bold px-1.5 py-0.5 rounded-md border-2 border-white dark:border-background-dark",
+                                    "4.8"
+                                }
                             }
-                            p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Senior UX Designer" }
                             div {
-                                class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
-                                span { class: "material-icons-round text-[14px]", "schedule" }
-                                " 2h ago"
-                                span { "•" }
-                                span { "Design Dept" }
+                                class: "flex-1 min-w-0",
+                                div {
+                                    class: "flex justify-between items-start",
+                                    h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Sarah Jenkins" }
+                                    span { class: "text-xs font-semibold text-yellow-600 bg-yellow-50 dark:bg-yellow-900/30 dark:text-yellow-200 px-2 py-1 rounded-lg", "Interviewing" }
+                                }
+                                p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Senior UX Designer" }
+                                div {
+                                    class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
+                                    span { class: "material-icons-round text-[14px]", "schedule" }
+                                    " 2h ago"
+                                    span { "•" }
+                                    span { "Design Dept" }
+                                }
                             }
                         }
-                    }
 
-                    // Candidate Card 2
-                    div {
-                        class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        onclick: move |_| navigator.push(Route::CandidateDetails { id: "2".to_string() }),
-                        div { class: "absolute w-1 h-full left-0 top-0 bg-primary" }
+                        // Candidate Card 2
                         div {
-                            class: "relative",
-                            img {
-                                alt: "Portrait of Michael Ross",
-                                class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
-                                src: "https://lh3.googleusercontent.com/aida-public/AB6AXuD82Rk3VhZa725n8d4OcPyoygQCf_MjeiIvjYfpO43q_hNavQeocD8jslVjOfA8o4ww0QrkfikL0A-AnK4WvbiY3jUf7tNo9cXA9GpNT3Qha6VSkmq2QL50SzZ4t9nrIe5KsZHOfoDntazbvYhYaTE8nWlh2MjwVQWENAAHRJ6yPhBRqVYaWlBxCsnDgp1yzySYWkWzIYhOzIKj_feBLx3MOX_aFJmlp4B1KYwwQy6slUaMdt8AEnbyGv6jH2DDo3KUsNpRc0a3q4mY"
+                            class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
+                        onclick: move |_| { navigator.push(Route::CandidateDetails { id: "2".to_string() }); },
+                            div { class: "absolute w-1 h-full left-0 top-0 bg-primary" }
+                            div {
+                                class: "relative",
+                                img {
+                                    alt: "Portrait of Michael Ross",
+                                    class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
+                                    src: "https://lh3.googleusercontent.com/aida-public/AB6AXuD82Rk3VhZa725n8d4OcPyoygQCf_MjeiIvjYfpO43q_hNavQeocD8jslVjOfA8o4ww0QrkfikL0A-AnK4WvbiY3jUf7tNo9cXA9GpNT3Qha6VSkmq2QL50SzZ4t9nrIe5KsZHOfoDntazbvYhYaTE8nWlh2MjwVQWENAAHRJ6yPhBRqVYaWlBxCsnDgp1yzySYWkWzIYhOzIKj_feBLx3MOX_aFJmlp4B1KYwwQy6slUaMdt8AEnbyGv6jH2DDo3KUsNpRc0a3q4mY"
+                                }
+                                div {
+                                    class: "absolute -bottom-1 -right-1 bg-primary text-[10px] text-white font-bold px-1.5 py-0.5 rounded-md border-2 border-white dark:border-background-dark",
+                                    "5.0"
+                                }
                             }
                             div {
-                                class: "absolute -bottom-1 -right-1 bg-primary text-[10px] text-white font-bold px-1.5 py-0.5 rounded-md border-2 border-white dark:border-background-dark",
-                                "5.0"
+                                class: "flex-1 min-w-0",
+                                div {
+                                    class: "flex justify-between items-start",
+                                    h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Michael Ross" }
+                                    span { class: "text-xs font-semibold text-primary bg-sage-surface dark:bg-primary/20 px-2 py-1 rounded-lg", "Offer Sent" }
+                                }
+                                p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Backend Engineer" }
+                                div {
+                                    class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
+                                    span { class: "material-icons-round text-[14px]", "schedule" }
+                                    " 1d ago"
+                                    span { "•" }
+                                    span { "Engineering" }
+                                }
                             }
                         }
-                        div {
-                            class: "flex-1 min-w-0",
-                            div {
-                                class: "flex justify-between items-start",
-                                h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Michael Ross" }
-                                span { class: "text-xs font-semibold text-primary bg-sage-surface dark:bg-primary/20 px-2 py-1 rounded-lg", "Offer Sent" }
-                            }
-                            p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Backend Engineer" }
-                            div {
-                                class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
-                                span { class: "material-icons-round text-[14px]", "schedule" }
-                                " 1d ago"
-                                span { "•" }
-                                span { "Engineering" }
-                            }
-                        }
-                    }
 
-                    // Candidate Card 3
-                    div {
-                        class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        div { class: "absolute w-1 h-full left-0 top-0 bg-blue-400" }
+                        // Candidate Card 3
                         div {
-                            class: "relative",
+                            class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
+                            div { class: "absolute w-1 h-full left-0 top-0 bg-blue-400" }
                             div {
-                                class: "w-14 h-14 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xl font-bold border border-blue-100 dark:border-blue-800/30",
-                                "DK"
+                                class: "relative",
+                                div {
+                                    class: "w-14 h-14 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xl font-bold border border-blue-100 dark:border-blue-800/30",
+                                    "DK"
+                                }
+                            }
+                            div {
+                                class: "flex-1 min-w-0",
+                                div {
+                                    class: "flex justify-between items-start",
+                                    h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "David Kim" }
+                                    span { class: "text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-200 px-2 py-1 rounded-lg", "New" }
+                                }
+                                p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Product Manager" }
+                                div {
+                                    class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
+                                    span { class: "material-icons-round text-[14px]", "schedule" }
+                                    " 3d ago"
+                                    span { "•" }
+                                    span { "Product" }
+                                }
                             }
                         }
-                        div {
-                            class: "flex-1 min-w-0",
-                            div {
-                                class: "flex justify-between items-start",
-                                h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "David Kim" }
-                                span { class: "text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-200 px-2 py-1 rounded-lg", "New" }
-                            }
-                            p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Product Manager" }
-                            div {
-                                class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
-                                span { class: "material-icons-round text-[14px]", "schedule" }
-                                " 3d ago"
-                                span { "•" }
-                                span { "Product" }
-                            }
-                        }
-                    }
 
-                    // Candidate Card 4
-                    div {
-                        class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        div { class: "absolute w-1 h-full left-0 top-0 bg-purple-400" }
+                        // Candidate Card 4
                         div {
-                            class: "relative",
-                            img {
-                                alt: "Portrait of Elena Rodriguez",
-                                class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
-                                src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDImRLQYMZAUUWvVky4MLg8JlJffUAZgJwPVTCu8-9XpEXhOxUf0cZF3ezpN2pBz5Y7ZsCsKzkNgp8s5uX1l1z0Viw3LyIyPDvaKihnCW5iepGX9VeHy7djEM0WCZOIIFwAleEtVueBGpT6tOkrxZZi9p27jwFvhLUD-BzL3mdcDl5pWNr8WtWstJIqzCGCqzbFG0QoEG-ns-_lNFJ2JLrqBsjz1CyMV3SQKGZN9mGMUYTKahvGrF7dgo6Mscznj2wyBTSlWuCMLIn6"
+                            class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
+                            div { class: "absolute w-1 h-full left-0 top-0 bg-purple-400" }
+                            div {
+                                class: "relative",
+                                img {
+                                    alt: "Portrait of Elena Rodriguez",
+                                    class: "w-14 h-14 rounded-xl object-cover border border-slate-100 dark:border-white/10",
+                                    src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDImRLQYMZAUUWvVky4MLg8JlJffUAZgJwPVTCu8-9XpEXhOxUf0cZF3ezpN2pBz5Y7ZsCsKzkNgp8s5uX1l1z0Viw3LyIyPDvaKihnCW5iepGX9VeHy7djEM0WCZOIIFwAleEtVueBGpT6tOkrxZZi9p27jwFvhLUD-BzL3mdcDl5pWNr8WtWstJIqzCGCqzbFG0QoEG-ns-_lNFJ2JLrqBsjz1CyMV3SQKGZN9mGMUYTKahvGrF7dgo6Mscznj2wyBTSlWuCMLIn6"
+                                }
+                            }
+                            div {
+                                class: "flex-1 min-w-0",
+                                div {
+                                    class: "flex justify-between items-start",
+                                    h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Elena Rodriguez" }
+                                    span { class: "text-xs font-semibold text-purple-600 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-200 px-2 py-1 rounded-lg", "Screening" }
+                                }
+                                p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "QA Engineer" }
+                                div {
+                                    class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
+                                    span { class: "material-icons-round text-[14px]", "schedule" }
+                                    " 4d ago"
+                                    span { "•" }
+                                    span { "QA Dept" }
+                                }
                             }
                         }
-                        div {
-                            class: "flex-1 min-w-0",
-                            div {
-                                class: "flex justify-between items-start",
-                                h3 { class: "font-bold text-slate-900 dark:text-white text-lg truncate", "Elena Rodriguez" }
-                                span { class: "text-xs font-semibold text-purple-600 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-200 px-2 py-1 rounded-lg", "Screening" }
-                            }
-                            p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "QA Engineer" }
-                            div {
-                                class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
-                                span { class: "material-icons-round text-[14px]", "schedule" }
-                                " 4d ago"
-                                span { "•" }
-                                span { "QA Dept" }
-                            }
-                        }
-                    }
 
-                    // Candidate Card 5
-                    div {
-                        class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden opacity-70",
-                        div { class: "absolute w-1 h-full left-0 top-0 bg-gray-400" }
+                        // Candidate Card 5
                         div {
-                            class: "relative",
+                            class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden opacity-70",
+                            div { class: "absolute w-1 h-full left-0 top-0 bg-gray-400" }
                             div {
-                                class: "w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 flex items-center justify-center text-xl font-bold border border-gray-200 dark:border-gray-700",
-                                "JW"
+                                class: "relative",
+                                div {
+                                    class: "w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 flex items-center justify-center text-xl font-bold border border-gray-200 dark:border-gray-700",
+                                    "JW"
+                                }
                             }
-                        }
-                        div {
-                            class: "flex-1 min-w-0",
                             div {
-                                class: "flex justify-between items-start",
-                                h3 { class: "font-bold text-slate-700 dark:text-slate-300 text-lg truncate", "James Wright" }
-                                span { class: "text-xs font-semibold text-gray-500 bg-gray-100 dark:bg-gray-800 dark:text-gray-400 px-2 py-1 rounded-lg", "Rejected" }
-                            }
-                            p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Sales Representative" }
-                            div {
-                                class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
-                                span { class: "material-icons-round text-[14px]", "schedule" }
-                                " 1w ago"
-                                span { "•" }
-                                span { "Sales" }
+                                class: "flex-1 min-w-0",
+                                div {
+                                    class: "flex justify-between items-start",
+                                    h3 { class: "font-bold text-slate-700 dark:text-slate-300 text-lg truncate", "James Wright" }
+                                    span { class: "text-xs font-semibold text-gray-500 bg-gray-100 dark:bg-gray-800 dark:text-gray-400 px-2 py-1 rounded-lg", "Rejected" }
+                                }
+                                p { class: "text-sm text-slate-500 dark:text-slate-400 truncate mb-1", "Sales Representative" }
+                                div {
+                                    class: "flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500",
+                                    span { class: "material-icons-round text-[14px]", "schedule" }
+                                    " 1w ago"
+                                    span { "•" }
+                                    span { "Sales" }
+                                }
                             }
                         }
                     }

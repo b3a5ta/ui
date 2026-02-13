@@ -61,22 +61,6 @@ pub fn Interactions() -> Element {
                 // Content Area
                 main {
                     class: "flex-1 overflow-y-auto px-6 py-4 relative timeline-line",
-                    style: "
-                        .timeline-line::before {
-                            content: '';
-                            position: absolute;
-                            top: 0;
-                            bottom: 0;
-                            left: 23px;
-                            width: 2px;
-                            background: #e2e8f0;
-                            z-index: 0;
-                        }
-                        /* Dark mode adjustment manually added since pure CSS style block might not catch 'dark' class on body correctly inside component */
-                        :host-context(.dark) .timeline-line::before {
-                            background: #2d332d;
-                        }
-                    ",
 
                     // Date Group: Today
                     div {

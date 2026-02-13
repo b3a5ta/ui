@@ -39,10 +39,6 @@ pub fn Login() -> Element {
                     class: "bg-surface-light dark:bg-surface-dark rounded-2xl shadow-soft p-6 sm:p-8 border border-primary/10 dark:border-primary/20 backdrop-blur-sm",
                     form {
                         class: "space-y-5",
-                        onsubmit: move |evt| {
-                            evt.prevent_default();
-                            navigator.push(Route::Candidates {});
-                        },
 
                         // Email Field
                         div {
@@ -99,7 +95,10 @@ pub fn Login() -> Element {
                         // Submit Button
                         button {
                             class: "w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg shadow-md shadow-primary/20 text-sm font-semibold text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-200 transform active:scale-[0.98]",
-                            r#type: "submit",
+                            r#type: "button",
+                            onclick: move |_| {
+                                navigator.push(Route::Candidates {});
+                            },
                             "Log In"
                         }
                     }
