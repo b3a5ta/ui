@@ -1,0 +1,1853 @@
+================================================================================
+  INTERVIEW CRM - MOBILE APPLICATION BLUEPRINT
+  Dioxus + Tauri Implementation Reference
+  Generated from Web Frontend Analysis
+================================================================================
+
+TABLE OF CONTENTS
+─────────────────
+  1. EXECUTIVE SUMMARY
+  2. TECHNOLOGY STACK (CURRENT WEB vs MOBILE TARGET)
+  3. API ENDPOINTS & MICROSERVICE INTERACTIONS
+  4. APPLICATION FUNCTIONALITIES
+  5. NAVIGATION, MENUS, PAGES & USER FLOWS
+  6. PAGE-BY-PAGE FUNCTIONAL SPECIFICATION
+  7. MOBILE UI/UX IMPLEMENTATION GUIDE (Dioxus + Tauri)
+
+================================================================================
+  1. EXECUTIVE SUMMARY
+================================================================================
+
+Application: NuViO369 CRM (Interview CRM)
+Developer: Futuremug
+Purpose: Recruitment/Interview pipeline management system with AI-powered
+         resume matching and automated calling capabilities.
+
+The web frontend is a server-side rendered (SSR) application built with:
+  - Rust (Spin SDK 3.0 / Wasm) as the HTTP handler
+  - Askama templates for HTML rendering
+  - Vanilla JavaScript (ES6+) for client-side interactivity
+  - Tailwind CSS 3.4.1 for styling
+  - No frontend framework (React, Vue, etc.) - pure JS
+
+The application has 6 core modules:
+  1. Dashboard - Overview statistics
+  2. Candidates (Leads) - Full CRUD + AI calling + bulk import
+  3. Contacts - Full CRUD
+  4. Interactions - Full CRUD with entity linking
+  5. Opportunities - Full CRUD + AI calling + records
+  6. Resume Matcher - AI-powered resume-to-JD matching with bulk calls
+
+================================================================================
+  2. TECHNOLOGY STACK
+================================================================================
+
+CURRENT WEB STACK:
+──────────────────
+  Runtime:        Spin SDK 3.0 (Wasm serverless)
+  Language:       Rust (backend handler) + Vanilla JS (frontend logic)
+  Templates:      Askama 0.12 (Jinja2-like SSR)
+  CSS:            Tailwind CSS 3.4.1 with custom sage/green theme
+  Icons:          FontAwesome 6.4.0 (CDN)
+  PDF Processing: PDF.js (reader), jsPDF + AutoTable (generator)
+  DOCX Processing: Mammoth.js (browser-based .docx parser)
+  Auth:           JWT Bearer tokens with refresh token flow
+  State:          localStorage + DOM state (no framework store)
+
+TARGET MOBILE STACK:
+────────────────────
+  Framework:      Dioxus (Rust-based reactive UI framework)
+  Packaging:      Tauri (native mobile shell for Android/iOS)
+  Language:       Rust (both UI logic and native bridge)
+  HTTP Client:    reqwest or Tauri HTTP plugin
+  Auth Storage:   Tauri secure store / platform keychain
+  State:          Dioxus signals / use_state / use_context
+  Navigation:     Dioxus Router
+
+COLOR THEME (sage/green - preserve in mobile):
+──────────────────────────────────────────────
+  Primary:        #609966 (sage green)
+  Primary Dark:   #40513B (dark sage)
+  Background:     #F7F9F0 (light sage)
+  Surface:        #FFFFFF
+  Border:         rgba(64, 81, 59, 0.1)
+  Hover:          rgba(96, 153, 102, 0.1)
+  Error/Danger:   #ef4444
+  Success:        #22c55e / #10b981
+  Warning:        #f59e0b
+  Info:           #3b82f6
+
+================================================================================
+  3. API ENDPOINTS & MICROSERVICE INTERACTIONS
+================================================================================
+
+API BASE URL: Configured dynamically
+  - Development: http://{hostname}:3000/api
+  - Production:  /api (proxied through frontend Wasm handler)
+  - Mobile app should use: https://<backend-host>/api (direct)
+
+AUTHENTICATION MECHANISM:
+─────────────────────────
+  All authenticated endpoints require:
+    Authorization: Bearer {JWT_TOKEN}
+    Content-Type: application/json
+
+  Token storage (web): localStorage keys 'token', 'refresh_token', 'user'
+  Token storage (mobile): Tauri secure store / platform keychain
+
+  JWT Claims structure:
+    {
+      "role": "Super Admin" | "Staff 1" | "Staff 2" | "Staff 3",
+      "allowed_services": ["candidates", "contacts", "interactions", "opportunities"],
+      "exp": <timestamp>,
+      "sub": "<user_id>"
+    }
+
+  Global 401 interceptor: On any 401 response, attempt token refresh.
+  If refresh fails, force logout and redirect to login.
+
+  Session timeout: 15-minute inactivity auto-logout (web only - mobile should
+  use background app state detection instead).
+
+────────────────────────────────────────────────────────────────────────────────
+3.1 AUTHENTICATION ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+POST /api/auth/login
+  Purpose:     User authentication
+  Auth:        None (public)
+  Request:     { "email": string, "password": string }
+  Response:    {
+                 "token": "JWT string",
+                 "refresh_token": "string",
+                 "user": { "id": "UUID", "name": string, "email": string, "role": string }
+               }
+  Errors:      401 Invalid credentials
+
+POST /api/auth/register
+  Purpose:     New user registration (admin creates users)
+  Auth:        None (public)
+  Request:     {
+                 "name": string (required),
+                 "email": string (required, email format),
+                 "password": string (required, min 6 chars),
+                 "confirm_password": string (must match password),
+                 "role": string
+               }
+  Response:    Success message or error
+  Errors:      409 Email already exists, 400 validation errors
+
+POST /api/auth/refresh
+  Purpose:     Refresh expired JWT access token
+  Auth:        None (but requires valid refresh_token in body)
+  Request:     { "refresh_token": string }
+  Response:    {
+                 "token": "new JWT string",
+                 "refresh_token": "optional new refresh token"
+               }
+  Errors:      401 Invalid/expired refresh token
+
+────────────────────────────────────────────────────────────────────────────────
+3.2 CANDIDATES (LEADS) ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/candidates
+  Purpose:     Fetch all candidates
+  Auth:        Bearer token
+  Response:    Array of candidate objects (see data model below)
+
+GET /api/candidates/{id}
+  Purpose:     Fetch single candidate by UUID
+  Auth:        Bearer token
+  Response:    Single candidate object
+
+POST /api/candidates
+  Purpose:     Create new candidate
+  Auth:        Bearer token
+  Request:     {
+                 "name": string (required),
+                 "email": string (required, email format),
+                 "phone": string (required),
+                 "location": string | null,
+                 "linkedin_url": string | null,
+                 "portfolio_url": string | null,
+                 "degree": string | null,
+                 "university": string | null,
+                 "graduation_year": number | null,
+                 "gpa": string | null,
+                 "experience_years": number | null (float, e.g., 2.5),
+                 "current_company": string | null,
+                 "current_designation": string | null,
+                 "skills": [string] (comma-separated converted to array),
+                 "notice_period": string | null ("Immediate"|"15 days"|"30 days"|"60 days"|"90 days"),
+                 "current_salary": number | null,
+                 "expected_salary": number | null,
+                 "preferred_dates": string | null,
+                 "preferred_time": string | null,
+                 "work_authorization": string | null ("Citizen"|"Permanent Resident"|"Work Visa"|"Student Visa"|"Requires Sponsorship"),
+                 "status": string ("New"|"Contacted"|"Call Back Requested"|"Screening Completed"|"Not Interested"),
+                 "source": string | null,
+                 "position_applied": string | null,
+                 "notes": string | null,
+                 "import_source": string (default: "manual")
+               }
+  Response:    Created candidate object with id
+  Errors:      409 Phone number already exists
+
+PUT /api/candidates/{id}
+  Purpose:     Update candidate
+  Auth:        Bearer token
+  Request:     Full candidate object with updated fields
+  Response:    Updated candidate object
+
+DELETE /api/candidates/{id}
+  Purpose:     Delete candidate
+  Auth:        Bearer token
+  Response:    Success/confirmation
+
+GET /api/candidates/stats
+  Purpose:     Dashboard statistics
+  Auth:        Bearer token
+  Response:    {
+                 "total": number,
+                 "by_status": {
+                   "New": number,
+                   "Contacted": number,
+                   "Screening Completed": number,
+                   "Call Back Requested": number,
+                   "Not Interested": number,
+                   ...
+                 }
+               }
+
+GET /api/candidates/export?stage={status}&from_date={YYYY-MM-DD}&to_date={YYYY-MM-DD}
+  Purpose:     Export candidates to Excel file
+  Auth:        Bearer token
+  Response:    Binary blob (Excel .xlsx file)
+  Notes:       All query params are optional filters
+
+POST /api/candidates/{id}/call
+  Purpose:     Initiate AI-powered phone call to candidate
+  Auth:        Bearer token
+  Request:     Empty body
+  Response:    { "message": string, "call_initiated": true }
+  Notes:       Phone must be valid Indian format (+91XXXXXXXXXX)
+
+GET /api/candidates/{id}/notes
+  Purpose:     Fetch notes/comments for a candidate
+  Auth:        Bearer token
+  Response:    Array of note objects
+
+POST /api/candidates/{id}/notes
+  Purpose:     Add note to candidate
+  Auth:        Bearer token
+  Request:     { "content": string, "note": string }
+  Response:    Created note object
+
+PUT /api/candidates/{id}/notes/{noteId}
+  Purpose:     Update a candidate note
+  Auth:        Bearer token
+  Request:     Updated note content
+  Response:    Updated note object
+
+────────────────────────────────────────────────────────────────────────────────
+3.3 CONTACTS ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/contacts
+  Purpose:     Fetch all contacts
+  Auth:        Bearer token
+  Response:    Array of contact objects
+
+GET /api/contacts/{id}
+  Purpose:     Fetch single contact
+  Auth:        Bearer token
+  Response:    {
+                 "id": "UUID",
+                 "name": string,
+                 "email": string,
+                 "mobile_primary": string,
+                 "job_title": string,
+                 "status": "Active" | "Inactive" | "Lead",
+                 "country": string,
+                 "state": string,
+                 "city": string,
+                 "zip_code": string,
+                 "address": string,
+                 "notes": string,
+                 "created_at": "ISO timestamp"
+               }
+
+POST /api/contacts
+  Purpose:     Create new contact
+  Auth:        Bearer token
+  Request:     Contact object (see fields above)
+  Response:    Created contact with id
+
+PUT /api/contacts/{id}
+  Purpose:     Update contact
+  Auth:        Bearer token
+  Request:     Contact object with updated fields
+  Response:    Updated contact object
+
+DELETE /api/contacts/{id}
+  Purpose:     Delete contact
+  Auth:        Bearer token
+  Response:    Success/confirmation
+
+────────────────────────────────────────────────────────────────────────────────
+3.4 INTERACTIONS ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/interactions
+  Purpose:     Fetch all interactions
+  Auth:        Bearer token
+  Response:    Array of interaction objects
+
+GET /api/interactions/{id}
+  Purpose:     Fetch single interaction
+  Auth:        Bearer token
+  Response:    Single interaction object
+
+POST /api/interactions
+  Purpose:     Create new interaction
+  Auth:        Bearer token
+  Request:     Interaction object with entity linking
+  Response:    Created interaction with id
+
+PUT /api/interactions/{id}
+  Purpose:     Update interaction
+  Auth:        Bearer token
+  Request:     Interaction object with updates
+  Response:    Updated interaction
+
+DELETE /api/interactions/{id}
+  Purpose:     Delete interaction
+  Auth:        Bearer token
+  Response:    Success/confirmation
+
+GET /api/interactions/activities/{entityType}/{entityId}
+  Purpose:     Fetch activities for a specific entity
+  Auth:        Bearer token
+  Params:      entityType = "Lead" | "Opportunity", entityId = UUID
+  Response:    Array of activity objects
+
+GET /api/interactions/history/{entityType}/{entityId}
+  Purpose:     Fetch interaction history for entity
+  Auth:        Bearer token
+  Params:      entityType = "Lead" | "Opportunity", entityId = UUID
+  Response:    Array of history objects
+
+────────────────────────────────────────────────────────────────────────────────
+3.5 OPPORTUNITIES ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/opportunities
+  Purpose:     Fetch all opportunities
+  Auth:        Bearer token
+  Response:    Array of opportunity objects
+
+GET /api/opportunities/{id}
+  Purpose:     Fetch single opportunity
+  Auth:        Bearer token
+  Response:    Single opportunity object
+
+POST /api/opportunities
+  Purpose:     Create new opportunity
+  Auth:        Bearer token
+  Request:     Opportunity object
+  Response:    Created opportunity with id
+
+PUT /api/opportunities/{id}
+  Purpose:     Update opportunity
+  Auth:        Bearer token
+  Request:     Opportunity object with updates
+  Response:    Updated opportunity
+
+DELETE /api/opportunities/{id}
+  Purpose:     Delete opportunity
+  Auth:        Bearer token
+  Response:    Success/confirmation
+
+GET /api/opportunities/export?from_date={YYYY-MM-DD}&to_date={YYYY-MM-DD}
+  Purpose:     Export opportunities to Excel
+  Auth:        Bearer token
+  Response:    Binary blob (.xlsx)
+
+POST /api/opportunities/{id}/call
+  Purpose:     Initiate AI call for opportunity contact
+  Auth:        Bearer token
+  Response:    Call initiation response
+
+GET /api/opportunities/{id}/notes
+  Purpose:     Fetch opportunity notes
+  Auth:        Bearer token
+  Response:    Array of notes
+
+POST /api/opportunities/{id}/notes
+  Purpose:     Add note to opportunity
+  Auth:        Bearer token
+  Request:     { "content": string, "note": string }
+  Response:    Created note
+
+GET /api/opportunities/{id}/attachments
+  Purpose:     Fetch opportunity attachments
+  Auth:        Bearer token
+  Response:    Array of attachment objects
+
+POST /api/opportunities/{id}/attachments
+  Purpose:     Upload file to opportunity
+  Auth:        Bearer token
+  Request:     File upload data
+  Response:    Created attachment
+
+────────────────────────────────────────────────────────────────────────────────
+3.6 ATTACHMENTS ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+POST /api/attachments
+  Purpose:     Upload file attachment (resume, document)
+  Auth:        Bearer token
+  Request:     {
+                 "entity_type": "candidate" | "opportunity",
+                 "entity_id": "UUID",
+                 "file_name": string,
+                 "mime_type": string,
+                 "file_content": "base64 encoded content",
+                 "note": string
+               }
+  Response:    Created attachment object with id
+  Limit:       Max 10MB per file
+
+GET /api/attachments/{id}/download
+  Purpose:     Download attachment file
+  Auth:        Bearer token
+  Response:    Binary file blob
+
+GET /api/attachments/{id}/proxy
+  Purpose:     Proxied download (keeps S3 URLs hidden)
+  Auth:        Bearer token
+  Response:    Binary file blob with Content-Disposition header
+
+────────────────────────────────────────────────────────────────────────────────
+3.7 RESUME MATCHER ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+POST /api/resume-matcher/bulk-upload
+  Purpose:     Bulk upload resumes for AI parsing
+  Auth:        Bearer token
+  Request:     {
+                 "files": [
+                   {
+                     "file_name": string,
+                     "file_content": "base64",
+                     "mime_type": string,
+                     "text": "pre-extracted text (optional)"
+                   }
+                 ]
+               }
+  Response:    { "batch_id": "UUID", "queued": number }
+  Limit:       Max 50 files per batch
+
+POST /api/resume-matcher/upload-resume
+  Purpose:     Upload and parse single resume
+  Auth:        Bearer token
+  Request:     {
+                 "file_name": string,
+                 "file_content_base64": "base64",
+                 "mime_type": string,
+                 "text": "pre-extracted text"
+               }
+  Response:    Success message
+
+GET /api/resume-matcher/batch-status/{batchId}
+  Purpose:     Poll batch processing status
+  Auth:        Bearer token
+  Response:    {
+                 "batch_id": "UUID",
+                 "status": "pending" | "processing" | "completed",
+                 "total": number,
+                 "completed": number,
+                 "failed": number,
+                 "items": [{ "file_name": string, "status": string, "error": string|null }]
+               }
+
+POST /api/resume-matcher/debug-process-batch
+  Purpose:     Trigger batch processing (dev/debug only)
+  Auth:        Bearer token
+  Request:     { "batch_id": "UUID" }
+
+POST /api/resume-matcher/upload-jd
+  Purpose:     Upload job description for matching
+  Auth:        Bearer token
+  Request:     { "job_title": string, "text": "job description text" }
+  Response:    Success message
+
+GET /api/resume-matcher/job-descriptions
+  Purpose:     Fetch all job descriptions
+  Auth:        Bearer token
+  Response:    [{ "id": "UUID", "job_title": string, "required_skills": [string] }]
+
+DELETE /api/resume-matcher/job-descriptions/{id}
+  Purpose:     Delete job description
+  Auth:        Bearer token
+
+POST /api/resume-matcher/match
+  Purpose:     Run AI resume-to-JD matching
+  Auth:        Bearer token
+  Request:     {
+                 "job_description_id": "UUID",
+                 "min_score": number (0-100),
+                 "limit": number (default 50)
+               }
+  Response:    {
+                 "matches": [{
+                   "candidate_id": "UUID",
+                   "candidate_name": string,
+                   "overall_score": number,
+                   "skills_match_score": number,
+                   "experience_match_score": number,
+                   "matched_skills": [string]
+                 }]
+               }
+
+────────────────────────────────────────────────────────────────────────────────
+3.8 BULK CALL ENDPOINTS
+────────────────────────────────────────────────────────────────────────────────
+
+POST /api/bulk-call
+  Purpose:     Create bulk call job for multiple candidates
+  Auth:        Bearer token
+  Request:     {
+                 "job_description_id": "UUID",
+                 "candidate_ids": ["UUID", ...]
+               }
+  Response:    { "job_id": "UUID" }
+
+GET /api/bulk-call/{jobId}
+  Purpose:     Poll bulk call job status
+  Auth:        Bearer token
+  Response:    {
+                 "job_id": "UUID",
+                 "status": "pending" | "running" | "completed" | "failed" | "cancelled",
+                 "total_count": number,
+                 "success_count": number,
+                 "failed_count": number,
+                 "attempts": [{
+                   "candidate_id": "UUID",
+                   "candidate_name": string,
+                   "status": "pending" | "success" | "failed" | "skipped"
+                 }]
+               }
+  Polling:     Every 3 seconds until status is completed/cancelled/failed
+
+DELETE /api/bulk-call/{jobId}
+  Purpose:     Cancel active bulk call job
+  Auth:        Bearer token
+
+────────────────────────────────────────────────────────────────────────────────
+3.9 HEALTH CHECK
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/healthz
+  Purpose:     Health check (always passes, even during trial expiry)
+  Auth:        None
+  Response:    "ok" (200)
+
+================================================================================
+  4. APPLICATION FUNCTIONALITIES
+================================================================================
+
+4.1 AUTHENTICATION & AUTHORIZATION
+───────────────────────────────────
+  - Email/password login with JWT token issuance
+  - Token refresh mechanism (auto-refresh on 401)
+  - Admin user registration
+  - Session inactivity timeout (15 min on web)
+  - Role-based access control (RBAC):
+    * Super Admin: Full access to all modules
+    * Staff 1/2/3: Access limited by allowed_services JWT claim
+  - Service-level permissions: candidates, contacts, interactions, opportunities
+  - Sidebar menu items dynamically shown/hidden based on JWT permissions
+  - Dashboard widget visibility based on role
+  - Trial period enforcement (TRIAL_EXPIRY_DATE environment variable)
+
+4.2 DASHBOARD
+─────────────
+  - Three stat widgets:
+    * Total Candidates (all records count)
+    * Screened Candidates (status = "Screening Completed")
+    * New Candidates (status = "New")
+  - Loading spinners while fetching
+  - Widget visibility based on user role
+  - Data sourced from GET /api/candidates/stats
+
+4.3 CANDIDATES MODULE
+─────────────────────
+  CREATE:
+    - Multi-section form (4 sections, ~25 fields)
+    - File upload for resume (base64 encoded, sent to attachments API)
+    - Skills as comma-separated input -> array
+    - Duplicate phone detection (409 error handling)
+    - Required fields: name, email, phone
+    - Numeric field conversion (salary, experience, graduation year)
+    - Null handling for empty optional fields
+
+  READ (List):
+    - Data table with columns: checkbox, Name+Email, Phone, Skills, Resume, Status, Actions
+    - Client-side search (name, email, phone)
+    - Status filter dropdown (7 statuses)
+    - Year filter -> Month filter -> Date range filter (cascading)
+    - Date range validation (no future dates, max 15 years back)
+    - Column sorting (name, phone, status) - ascending/descending toggle
+    - Pagination with page size selector (10/25/50/100)
+    - Bulk selection with select-all checkbox
+    - Export to Excel with current filters applied
+    - Loading overlay during data fetch
+
+  READ (Detail View):
+    - 3-column detail grid with labeled fields
+    - Status badge with color coding
+    - Back and Edit navigation buttons
+
+  UPDATE:
+    - Same form as Create, pre-populated with existing data
+    - Inline status change from table dropdown with confirmation modal
+    - Status change preview (current -> new) in modal
+
+  DELETE:
+    - Custom confirmation modal (not browser confirm())
+    - Single delete from action buttons
+    - Bulk delete from bulk actions panel
+
+  SPECIAL FEATURES:
+    - AI Call Initiation: POST /candidates/{id}/call
+      * Phone validation (Indian +91 format required)
+      * Call confirmation modal showing name, phone, company
+      * Loading animation during call
+      * Automatic status update to "Contacted" on success
+    - Resume download via authenticated proxy
+    - Notes/comments system (CRUD on candidate notes)
+    - Records view (interaction history for candidate)
+
+4.4 CONTACTS MODULE
+───────────────────
+  - Full CRUD (Create, Read list, Read detail, Update, Delete)
+  - Data table with search, status filter, date filters
+  - Status values: Active, Inactive, Lead
+  - Fields: name, email, mobile_primary, job_title, status,
+    country, state, city, zip_code, address, notes
+  - Similar pagination and sorting as Candidates
+
+4.5 INTERACTIONS MODULE
+───────────────────────
+  - Full CRUD
+  - Entity linking (interactions linked to Leads or Opportunities)
+  - Activity tracking per entity
+  - Interaction history per entity
+  - Month/date filtering
+  - Data table with standard features
+
+4.6 OPPORTUNITIES MODULE
+────────────────────────
+  - Full CRUD + Records view
+  - AI Call capability (same as Candidates)
+  - Notes system
+  - Attachments (file upload/download)
+  - Export to Excel
+  - Skill tooltips (hover to see all skills)
+  - Records page (interaction history, activities)
+  - Similar table features as Candidates
+
+4.7 RESUME MATCHER MODULE
+─────────────────────────
+  Tab-based interface with 3 tabs:
+
+  TAB 1: Upload Resumes
+    - Drag & drop file zone or click to browse
+    - Supports PDF and DOCX files
+    - Client-side text extraction using PDF.js and Mammoth.js
+    - Single upload mode (one file at a time)
+    - Bulk upload mode (up to 50 files)
+    - Batch processing with status polling
+    - Progress tracking per file in batch
+
+  TAB 2: Job Descriptions
+    - Upload JD form (job title + paste/upload JD text)
+    - JD list table (title, skills pills, actions)
+    - Delete JD functionality
+    - Skills tooltip on hover (shows all skills when >3)
+
+  TAB 3: Match & Call
+    - Select a JD from the list
+    - Minimum score threshold slider (0-100%)
+    - Run matching algorithm
+    - Results table: Candidate, Overall Score, Skills Match, Experience Match, Matched Skills, Actions
+    - Individual call initiation from results
+    - Bulk call functionality:
+      * Creates bulk call job
+      * Progress modal with per-candidate status
+      * Minimizable to floating widget
+      * Real-time polling (3s interval)
+      * Cancel job capability
+      * Persists across page navigation (localStorage)
+
+================================================================================
+  5. NAVIGATION, MENUS, PAGES & USER FLOWS
+================================================================================
+
+5.1 COMPLETE ROUTE MAP
+──────────────────────
+
+  AUTH PAGES (no sidebar, no header):
+    /                         -> Login page
+    /login                    -> Login page
+    /register                 -> Registration page
+
+  MAIN APP PAGES (sidebar + header + breadcrumb):
+    /dashboard                -> Dashboard (stats overview)
+    /resume-matcher           -> Resume Matcher (3-tab interface)
+    /candidates               -> Candidates list table
+    /candidates/add           -> Add new candidate form
+    /candidates/edit?id=UUID  -> Edit candidate form
+    /candidates/view?id=UUID  -> View candidate details
+    /candidates/record?id=UUID-> Candidate records/history
+    /contacts                 -> Contacts list table
+    /contacts/add             -> Add new contact form
+    /contacts/edit?id=UUID    -> Edit contact form
+    /contacts/view?id=UUID    -> View contact details
+    /interactions             -> Interactions list table
+    /interactions/add         -> Add new interaction form
+    /interactions/edit?id=UUID-> Edit interaction form
+    /interactions/view?id=UUID-> View interaction details
+    /opportunities            -> Opportunities list table
+    /opportunities/add        -> Add new opportunity form
+    /opportunities/edit?id=UUID-> Edit opportunity form
+    /opportunities/view?id=UUID-> View opportunity details
+    /opportunities/record?id=UUID -> Opportunity records
+
+  SPECIAL:
+    /trial-expired            -> Trial period expired page
+
+5.2 SIDEBAR NAVIGATION MENU
+────────────────────────────
+
+  ┌──────────────────────────┐
+  │  NuViO369 CRM            │
+  │  Futuremug               │
+  ├──────────────────────────┤
+  │  ▣ Dashboard        [*]  │  <- Always visible
+  │  🧠 Resume Matcher  [*]  │  <- Always visible
+  │  ⊕ Candidates       [P]  │  <- Requires "candidates" service
+  │  📇 Contacts        [P]  │  <- Requires "contacts" service
+  │  🤝 Interactions    [P]  │  <- Requires "interactions" service
+  └──────────────────────────┘
+
+  [*] = Always visible to authenticated users
+  [P] = Permission-gated by JWT allowed_services claim
+
+  Active item: Green background (#609966), white text, shadow
+  Note: "Opportunities" module exists but is NOT in the sidebar menu.
+  It is accessible only via direct URL or internal navigation.
+
+5.3 HEADER BAR
+──────────────
+  Left:  Dynamic breadcrumb (Dashboard / Module / Action)
+  Right: User profile dropdown
+         - User name + initials avatar
+         - Dropdown: My Profile, Preferences, Logout
+
+5.4 USER FLOWS
+──────────────
+
+  LOGIN FLOW:
+    Login Page -> Enter email/password -> POST /auth/login
+    -> Success: Store token, redirect to /dashboard
+    -> Failure: Show error toast
+
+  CANDIDATE MANAGEMENT FLOW:
+    Dashboard -> Sidebar "Candidates" -> Candidate List
+    -> "Add Candidate" button -> Fill form -> Submit -> Redirect to list
+    -> Click name -> View details -> "Edit" button -> Edit form -> Save
+    -> Status dropdown in table -> Confirmation modal -> API update
+    -> Call button -> Call confirmation modal -> POST call API
+    -> Checkbox select -> "Delete" in bulk actions -> Confirm -> Delete
+
+  RESUME MATCHING FLOW:
+    Sidebar "Resume Matcher" -> Tab 1: Upload resumes (PDF/DOCX)
+    -> Tab 2: Create Job Description
+    -> Tab 3: Select JD -> Set min score -> "Run Matching"
+    -> View results table -> Click individual call buttons
+    -> OR click "Bulk Call All" -> Confirmation -> Progress modal
+    -> Monitor progress -> Minimize to widget -> Continue working
+
+  EXPORT FLOW:
+    Module list page -> Apply filters (status, date range)
+    -> Click "Export" button -> Download .xlsx file
+
+5.5 MODAL INVENTORY
+───────────────────
+  1. Delete Confirmation Modal (all modules)
+     - Warning icon, message, Cancel/Delete buttons
+  2. Status Change Confirmation Modal (Candidates, Opportunities)
+     - Shows current status -> new status preview
+  3. Call Confirmation Modal (Candidates)
+     - Shows candidate name, phone, company
+     - AI agent notice message
+  4. Bulk Call Confirmation Modal (Resume Matcher)
+     - Candidate count, delay notice
+  5. Bulk Call Progress Modal (Resume Matcher)
+     - Progress bar, per-candidate status list
+     - Minimizable to floating widget
+  6. Profile Dropdown (all pages)
+     - My Profile, Preferences, Logout
+
+================================================================================
+  6. PAGE-BY-PAGE FUNCTIONAL SPECIFICATION
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+6.1 LOGIN PAGE (/login)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Centered card, no sidebar/header
+  Branding: "NuViO369 CRM" + "New Vision Orchestration" + "Futuremug"
+
+  Form Fields:
+    - Email (type=email, required)
+    - Password (type=password, required, with show/hide toggle)
+
+  Actions:
+    - "Sign In" button -> POST /auth/login
+    - "Register" link -> navigate to /register
+
+  Validation:
+    - Client-side: HTML5 required + email format
+    - Server-side: Error toast on invalid credentials
+    - Error messages: "Invalid Credentials! Check your username and password."
+
+  State:
+    - On success: Store token, refresh_token, user in localStorage
+    - Redirect to /dashboard
+    - If already authenticated: redirect to /dashboard (requireGuest check)
+
+────────────────────────────────────────────────────────────────────────────────
+6.2 REGISTER PAGE (/register)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Centered card, no sidebar/header
+
+  Form Fields:
+    - Full Name (required)
+    - Email (type=email, required)
+    - Password (type=password, required, min 6 chars)
+    - Confirm Password (must match password)
+    - Role (select dropdown)
+
+  Validation:
+    - Password minimum length: 6 characters
+    - Password match check
+    - Error messages with specific field highlighting
+    - "Passwords do not match!" / "Password must be at least 6 characters"
+
+  Actions:
+    - "Register" button -> POST /auth/register
+    - "Back to Login" link
+
+────────────────────────────────────────────────────────────────────────────────
+6.3 DASHBOARD (/dashboard)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + 3-column widget grid
+
+  Widgets:
+    1. "Total Candidates" - Count of all candidates
+    2. "Screened Candidates" - Count where status = "Screening Completed"
+    3. "New Candidates" - Count where status = "New"
+
+  Each Widget:
+    - Card with title, icon, loading spinner, then large number
+    - Hover: slight lift + shadow
+
+  Permission Logic:
+    Staff 1:     Sees widgets 1, 2
+    Staff 2/3:   Sees widgets 1, 2, 3
+    Super Admin: Sees all widgets
+
+  Data Source: GET /api/candidates/stats
+
+────────────────────────────────────────────────────────────────────────────────
+6.4 CANDIDATES LIST (/candidates)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + Controls bar + Data table + Pagination
+
+  CONTROLS BAR:
+    - Search input (searches name, email, phone)
+    - "Add Candidate" button (primary, links to /candidates/add)
+    - Status filter dropdown:
+      All Statuses, New, Contacted, Call Back Requested,
+      Screening Completed, Not Interested, Busy, Not Answered
+    - Year filter dropdown (current year - 15 years back)
+    - Month filter dropdown (enabled only when year is selected)
+    - From Date picker (with validation)
+    - To Date picker (with validation)
+    - Divider
+    - Export to Excel button
+    - Bulk actions panel (appears when items selected):
+      "{N} selected" + Delete button
+
+  TABLE COLUMNS:
+    1. Checkbox (bulk select)
+    2. Name + Email (name is clickable link to view page)
+    3. Phone
+    4. Skills (truncated to 3 with "+N" indicator)
+    5. Resume (PDF icon if resume_url exists, downloadable)
+    6. Status (inline dropdown - change triggers confirmation modal + API PUT)
+    7. Actions:
+       - Call (green phone icon, disabled if no valid +91 phone)
+       - View (blue eye icon -> /candidates/view?id=)
+       - Edit (purple pen icon -> /candidates/edit?id=)
+       - Records (purple clipboard -> /candidates/record?id=)
+       - Delete (red trash icon -> confirmation modal)
+
+  PAGINATION:
+    - "Showing X-Y of Z records"
+    - Page size selector: 10, 25, 50, 100
+    - Page number buttons with ellipsis
+    - Prev/Next chevron buttons
+
+  SORTING:
+    - Clickable column headers: Name, Phone, Status
+    - Toggle asc/desc with sort icon indicator
+
+  FILTERING LOGIC (client-side):
+    - All filters combine with AND logic
+    - Search: partial match on name, email, phone (case-insensitive)
+    - Status: exact match
+    - Date range: compares created_at field (substring YYYY-MM-DD)
+    - Year/Month cascading: sets from/to date automatically
+
+  DATE VALIDATION:
+    - No future dates allowed
+    - No dates older than 15 years
+    - From date cannot be after To date
+    - Visual error state (red border) on invalid dates
+    - Validation toast notification
+
+  INLINE STATUS CHANGE:
+    - Dropdown in table cell changes status
+    - Triggers confirmation modal showing current -> new status
+    - On confirm: PUT /api/candidates/{id} with full candidate object
+    - On cancel: reverts dropdown to original value
+
+  CALL INITIATION:
+    - Phone validation: must match /^(\+91|91)\d{10}$/
+    - Shows call confirmation modal with candidate details
+    - POST /api/candidates/{id}/call
+    - On success: updates status to "Contacted" locally
+    - Button shows calling animation while in progress
+
+  EXPORT:
+    - Sends current filter state as query params
+    - Downloads .xlsx blob file
+    - Filename includes date range if filtered
+
+  BULK DELETE:
+    - Iterates over selected IDs, sends DELETE for each
+    - Refreshes data after completion
+
+────────────────────────────────────────────────────────────────────────────────
+6.5 ADD CANDIDATE (/candidates/add)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + Form card
+
+  FORM SECTIONS (3-column grid, responsive to 2-col and 1-col):
+
+  Section 1: Personal & Contact Information
+    - Full Name* (text, maxlength=100, helper: "Legal name as on government IDs")
+    - Professional Email* (email)
+    - Mobile Number* (tel, placeholder: "+91 9876543210")
+    - Current Location (text, helper: "For relocation/timezone considerations")
+    - LinkedIn Profile (text, URL format)
+    - Portfolio/GitHub Link (url)
+
+  Section 2: Professional & Academic Background
+    - CV/Resume Upload (file, accepts .pdf,.doc,.docx, max 10MB)
+    - Highest Degree (text)
+    - University/College (text)
+    - Year of Graduation (number, min=1950, max=2030)
+    - GPA/Percentage (text)
+    - Total Experience Years (number, min=0, step=0.5)
+    - Current/Previous Company (text)
+    - Current Designation (text)
+    - Primary Skills (text, comma-separated, full-width)
+
+  Section 3: Interview Logistics & Preferences
+    - Notice Period (select: Immediate/15d/30d/60d/90d)
+    - Current Salary (number)
+    - Expected Salary (number)
+    - Preferred Interview Dates (text)
+    - Preferred Interview Time (text)
+    - Work Authorization (select: Citizen/PR/Work Visa/Student Visa/Requires Sponsorship)
+
+  Section 4: Additional Information
+    - Status (select: New/Contacted/Call Back Requested/Screening Completed/Not Interested)
+    - Source (text)
+    - Position Applied For (text)
+    - Notes/Comments (textarea, full-width)
+    - Hidden: import_source = "manual"
+
+  ACTIONS:
+    - Cancel button -> navigate to /candidates
+    - Create Candidate button -> createLead() function
+
+  SUBMISSION LOGIC:
+    1. HTML5 form validation (reportValidity)
+    2. Extract resume file separately
+    3. Convert numeric fields to proper types
+    4. Split skills string into array
+    5. Set empty strings to null
+    6. POST /api/candidates (create candidate)
+    7. If resume provided: POST /api/attachments (upload as base64)
+    8. Success toast -> redirect to /candidates after 1.5s
+
+  ERROR HANDLING:
+    - 409: "Phone number already exists" - highlights phone field
+    - LinkedIn URL error: highlights linkedin field
+    - Resume upload failure: shows warning but doesn't fail creation
+
+────────────────────────────────────────────────────────────────────────────────
+6.6 EDIT CANDIDATE (/candidates/edit?id=UUID)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Same as Add form
+  Behavior:
+    - On load: GET /api/candidates/{id} and populate all fields
+    - Same form fields as Add
+    - Submit: PUT /api/candidates/{id}
+    - Cancel: navigate back to /candidates
+
+────────────────────────────────────────────────────────────────────────────────
+6.7 VIEW CANDIDATE (/candidates/view?id=UUID)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + Detail card
+
+  HEADER:
+    - Title: "View Lead"
+    - ID display
+    - Back button -> /candidates
+    - Edit button -> /candidates/edit?id=UUID
+
+  DETAIL GRID (3 columns):
+    - All candidate fields displayed as read-only label/value pairs
+    - Status shown as colored badge
+    - Skills shown as text
+    - Full-width fields: notes, skills
+
+────────────────────────────────────────────────────────────────────────────────
+6.8 CANDIDATE RECORDS (/candidates/record?id=UUID)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + Records view
+
+  Content:
+    - Candidate basic info header
+    - Interaction history (GET /interactions/history/Lead/{id})
+    - Activity log (GET /interactions/activities/Lead/{id})
+    - Notes section (GET /candidates/{id}/notes)
+    - Add note capability
+
+────────────────────────────────────────────────────────────────────────────────
+6.9 CONTACTS LIST (/contacts)
+────────────────────────────────────────────────────────────────────────────────
+  Same pattern as Candidates list with:
+    - Status filter: Active, Inactive, Lead
+    - Date filters
+    - Table columns: name, email, mobile, job_title, status, actions
+    - Actions: View, Edit, Delete
+
+────────────────────────────────────────────────────────────────────────────────
+6.10 ADD/EDIT/VIEW CONTACT
+────────────────────────────────────────────────────────────────────────────────
+  Form Fields:
+    - Name, Email, Mobile Primary, Job Title
+    - Status (Active/Inactive/Lead)
+    - Country, State, City, Zip Code, Address
+    - Notes
+
+────────────────────────────────────────────────────────────────────────────────
+6.11 INTERACTIONS LIST (/interactions)
+────────────────────────────────────────────────────────────────────────────────
+  - Standard data table with search/filter
+  - Entity type linking (Lead or Opportunity)
+  - Month/date filtering
+  - Standard CRUD operations
+
+────────────────────────────────────────────────────────────────────────────────
+6.12 OPPORTUNITIES LIST + DETAIL PAGES
+────────────────────────────────────────────────────────────────────────────────
+  Similar to Candidates module with:
+    - CRUD operations
+    - AI Call capability
+    - Notes and attachments
+    - Excel export
+    - Records/history view
+    - Skills tooltips
+
+────────────────────────────────────────────────────────────────────────────────
+6.13 RESUME MATCHER (/resume-matcher)
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Sidebar + Header + Tab container
+
+  TAB NAVIGATION:
+    Three tabs with pill-style buttons:
+    [Upload Resumes] [Job Descriptions] [Match & Call]
+
+  TAB 1: UPLOAD RESUMES
+    Upload Mode Toggle:
+      - Single Resume / Bulk Upload (up to 50)
+
+    Single Upload:
+      - Drag & drop zone (or click to browse)
+      - Accepts: .pdf, .docx
+      - Client-side text extraction:
+        * PDF: PDF.js library (pdf.min.js + pdf.worker.min.js)
+        * DOCX: Mammoth.js library
+      - Extracts text content from document
+      - Sends to POST /resume-matcher/upload-resume
+      - Shows success/error notification
+
+    Bulk Upload:
+      - Multi-file selection
+      - Per-file progress indicators
+      - Sends batch to POST /resume-matcher/bulk-upload
+      - Polls GET /resume-matcher/batch-status/{batchId}
+      - Shows completion status per file
+
+  TAB 2: JOB DESCRIPTIONS
+    Upload Form:
+      - Job Title (text input, required)
+      - Job Description text (textarea or file upload with text extraction)
+      - Submit: POST /resume-matcher/upload-jd
+
+    JD List Table:
+      Columns: Job Title, Skills (pills with "+N more" tooltip), Actions
+      Actions: Select (for matching), Delete
+      - Skills show first 3 as pills, hover "+N more" shows tooltip with all
+      - Delete with confirmation
+      - Cached JD data for tooltip performance
+
+  TAB 3: MATCH & CALL
+    Prerequisites: Must have uploaded resumes AND created at least one JD
+
+    Matching Controls:
+      - Selected JD indicator (highlighted row in JD list)
+      - Minimum Score slider/range (0-100%, shown as value)
+      - "Run Matching" button
+
+    Results Table:
+      Columns: Candidate (name + ID), Overall Score (%), Skills Match (%),
+               Experience Match (%), Matched Skills (pills), Actions
+      - Scores shown as bold percentages
+      - Skills: first 4 as pills + "+N" overflow
+      - Action: Call button per candidate
+
+    Bulk Call:
+      - "Call All ({N})" button appears after matching
+      - Opens confirmation modal: "Initiate bulk call for N candidates?"
+      - Creates job: POST /bulk-call
+      - Shows progress modal:
+        * Job status text (Pending/Running/Completed)
+        * Progress bar with percentage
+        * "{completed}/{total} completed"
+        * Per-candidate list with status icons:
+          ⏳ Pending (amber)
+          ✓ Success (green)
+          ✗ Failed (red)
+          ⊘ Skipped (gray)
+        * Cancel Job button
+      - Modal can be minimized to floating widget (bottom-right)
+      - Widget shows: progress bar + status text + expand/close buttons
+      - Job persisted in localStorage('activeBulkCallJob')
+      - Restored on page reload
+
+────────────────────────────────────────────────────────────────────────────────
+6.14 TRIAL EXPIRED PAGE
+────────────────────────────────────────────────────────────────────────────────
+  Layout: Centered card, no sidebar (uses auth_base layout)
+  Content:
+    - Clock icon (red)
+    - "Trial Period Expired" heading
+    - Expiry date display
+    - "Contact Administrator" mailto button (admin@futuremug.com)
+    - Footer: "NuViO369 CRM by Futuremug"
+
+================================================================================
+  7. MOBILE UI/UX IMPLEMENTATION GUIDE (Dioxus + Tauri)
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+7.1 ARCHITECTURE OVERVIEW
+────────────────────────────────────────────────────────────────────────────────
+
+  Recommended Architecture:
+    ┌──────────────────────────────────────┐
+    │           Tauri Mobile Shell          │
+    │  ┌──────────────────────────────────┐│
+    │  │       Dioxus Application          ││
+    │  │  ┌────────────┐ ┌─────────────┐  ││
+    │  │  │   Router    │ │   Signals   │  ││
+    │  │  │  (screens)  │ │   (state)   │  ││
+    │  │  └────────────┘ └─────────────┘  ││
+    │  │  ┌────────────┐ ┌─────────────┐  ││
+    │  │  │ Components  │ │  Services   │  ││
+    │  │  │ (reusable)  │ │  (API/auth) │  ││
+    │  │  └────────────┘ └─────────────┘  ││
+    │  └──────────────────────────────────┘│
+    │  ┌──────────────────────────────────┐│
+    │  │     Tauri Plugins (Native)        ││
+    │  │  Secure Store | HTTP | File Sys   ││
+    │  └──────────────────────────────────┘│
+    └──────────────────────────────────────┘
+
+  Project Structure (suggested):
+    src/
+    ├── main.rs                 # Tauri entry point
+    ├── app.rs                  # Root Dioxus component + router
+    ├── auth/
+    │   ├── mod.rs
+    │   ├── login.rs            # Login screen
+    │   ├── register.rs         # Register screen
+    │   └── service.rs          # Auth API calls, token management
+    ├── dashboard/
+    │   ├── mod.rs
+    │   └── dashboard.rs        # Dashboard screen with stat cards
+    ├── candidates/
+    │   ├── mod.rs
+    │   ├── list.rs             # Candidate list screen
+    │   ├── form.rs             # Add/Edit candidate screen
+    │   ├── detail.rs           # View candidate screen
+    │   ├── records.rs          # Candidate records screen
+    │   └── service.rs          # Candidate API calls
+    ├── contacts/
+    │   ├── mod.rs
+    │   ├── list.rs
+    │   ├── form.rs
+    │   ├── detail.rs
+    │   └── service.rs
+    ├── interactions/
+    │   ├── mod.rs
+    │   ├── list.rs
+    │   ├── form.rs
+    │   ├── detail.rs
+    │   └── service.rs
+    ├── opportunities/
+    │   ├── mod.rs
+    │   ├── list.rs
+    │   ├── form.rs
+    │   ├── detail.rs
+    │   ├── records.rs
+    │   └── service.rs
+    ├── resume_matcher/
+    │   ├── mod.rs
+    │   ├── upload.rs           # Resume upload screen
+    │   ├── job_descriptions.rs # JD management screen
+    │   ├── matching.rs         # Match results + bulk call
+    │   └── service.rs          # Resume matcher API calls
+    ├── components/
+    │   ├── mod.rs
+    │   ├── bottom_nav.rs       # Bottom navigation bar
+    │   ├── app_bar.rs          # Top app bar with title + actions
+    │   ├── data_table.rs       # Reusable list/table component
+    │   ├── search_bar.rs       # Search input component
+    │   ├── filter_chips.rs     # Filter chip row
+    │   ├── status_badge.rs     # Colored status indicator
+    │   ├── modal.rs            # Generic modal/dialog
+    │   ├── toast.rs            # Toast notification
+    │   ├── form_field.rs       # Reusable form input
+    │   ├── fab.rs              # Floating action button
+    │   ├── empty_state.rs      # Empty list placeholder
+    │   ├── loading.rs          # Loading spinner/skeleton
+    │   └── pagination.rs       # Pagination or infinite scroll
+    ├── models/
+    │   ├── mod.rs
+    │   ├── candidate.rs        # Candidate struct + enums
+    │   ├── contact.rs
+    │   ├── interaction.rs
+    │   ├── opportunity.rs
+    │   └── auth.rs             # User, LoginRequest, etc.
+    ├── services/
+    │   ├── mod.rs
+    │   ├── http_client.rs      # Configured reqwest with auth interceptor
+    │   └── api_base.rs         # API base URL configuration
+    └── theme/
+        ├── mod.rs
+        └── colors.rs           # Color constants matching web theme
+
+────────────────────────────────────────────────────────────────────────────────
+7.2 NAVIGATION STRUCTURE (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  RECOMMENDED: Bottom Navigation Bar + Top App Bar
+
+  Bottom Navigation (5 items max for mobile):
+    ┌─────────────────────────────────────────┐
+    │  🏠      👥      🤝      🧠      ⋯     │
+    │ Home  Candidates Contacts Matcher  More  │
+    └─────────────────────────────────────────┘
+
+  "More" menu (drawer or sheet) for overflow:
+    - Interactions
+    - Opportunities
+    - Settings/Profile
+    - Logout
+
+  Top App Bar:
+    ┌─────────────────────────────────────────┐
+    │ ← Title                          🔍 ⋮  │
+    └─────────────────────────────────────────┘
+    - Back arrow (on sub-pages)
+    - Screen title (dynamic)
+    - Search icon (opens search bar)
+    - Menu icon (profile/settings)
+
+  ALTERNATIVE: Drawer Navigation
+    If more than 5 primary modules are needed, use a hamburger drawer:
+    ┌──────────────┐
+    │ NuViO369 CRM │
+    │ User Name    │
+    ├──────────────┤
+    │ Dashboard    │
+    │ Candidates   │
+    │ Contacts     │
+    │ Interactions │
+    │ Resume Match │
+    ├──────────────┤
+    │ Profile      │
+    │ Logout       │
+    └──────────────┘
+
+  Permission-based menu visibility:
+    - Same logic as web: decode JWT, check allowed_services
+    - Hide menu items user doesn't have access to
+    - Dashboard and Resume Matcher always visible
+
+────────────────────────────────────────────────────────────────────────────────
+7.3 SCREEN HIERARCHY
+────────────────────────────────────────────────────────────────────────────────
+
+  Auth Flow (no bottom nav):
+    Login Screen
+      └── Register Screen
+
+  Main App (with bottom nav):
+    Dashboard Screen
+    │
+    Candidates (List)
+    ├── Candidate Detail (View)
+    │   ├── Edit Candidate (Form)
+    │   └── Candidate Records
+    └── Add Candidate (Form)
+    │
+    Contacts (List)
+    ├── Contact Detail (View)
+    │   └── Edit Contact (Form)
+    └── Add Contact (Form)
+    │
+    Interactions (List)
+    ├── Interaction Detail (View)
+    │   └── Edit Interaction (Form)
+    └── Add Interaction (Form)
+    │
+    Resume Matcher
+    ├── Upload Tab
+    ├── Job Descriptions Tab
+    └── Match & Call Tab
+    │
+    More Menu
+    ├── Opportunities (List)
+    │   ├── Opportunity Detail
+    │   │   ├── Edit Opportunity
+    │   │   └── Opportunity Records
+    │   └── Add Opportunity
+    ├── Profile
+    └── Logout
+
+────────────────────────────────────────────────────────────────────────────────
+7.4 DATA LISTING FORMAT (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses full data tables. Mobile should use CARD-BASED LISTS.
+
+  Candidate List Item Card:
+    ┌─────────────────────────────────────────┐
+    │ John Doe                    [New]  📞   │
+    │ john@example.com                        │
+    │ +91 9876543210                          │
+    │ Java, Python, React  +2                 │
+    │ Applied: Software Engineer              │
+    └─────────────────────────────────────────┘
+
+  Design Principles:
+    - Primary info (name) prominent at top
+    - Status as colored chip/badge (top-right)
+    - Secondary info (email, phone) below
+    - Skills as horizontal pill chips
+    - Quick action icons (call, view) on right side
+    - Swipe actions: swipe left for delete, swipe right for edit
+    - Long press for multi-select mode
+
+  Contact List Item:
+    ┌─────────────────────────────────────────┐
+    │ Jane Smith                   [Active]   │
+    │ jane@company.com                        │
+    │ Product Manager at TechCorp             │
+    └─────────────────────────────────────────┘
+
+  Opportunity List Item:
+    ┌─────────────────────────────────────────┐
+    │ Senior Dev Position           📞        │
+    │ Company: TechCorp                       │
+    │ Status: Open     Score: 85%             │
+    └─────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+7.5 SEARCH & FILTER (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  TOP SEARCH BAR:
+    - Expandable search icon in app bar
+    - Opens full-width search input with cancel
+    - Real-time filtering as user types
+
+  FILTER CHIPS ROW (horizontal scroll below search):
+    ┌──────────────────────────────────────────────────┐
+    │ [All ▼] [Status ▼] [Date ▼] [Year ▼] [Clear X]  │
+    └──────────────────────────────────────────────────┘
+    - Each chip opens a bottom sheet with options
+    - Active filters shown as filled chips
+    - "Clear" removes all filters
+
+  FILTER BOTTOM SHEET:
+    - Status: Radio list of status options
+    - Date Range: Calendar date pickers (from/to)
+    - Year/Month: Scrollable picker
+
+  SORT:
+    - Sort icon in app bar
+    - Opens bottom sheet: Sort by Name (A-Z, Z-A), Date, Status
+
+────────────────────────────────────────────────────────────────────────────────
+7.6 FORM LAYOUT (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses 3-column grid. Mobile should use SINGLE-COLUMN stacked form.
+
+  Form Structure:
+    ┌─────────────────────────────────────────┐
+    │ ← Add Candidate                   Save  │
+    ├─────────────────────────────────────────┤
+    │ ▼ Personal & Contact Info               │
+    │ ┌─────────────────────────────────────┐ │
+    │ │ Full Name *                         │ │
+    │ │ [________________________]          │ │
+    │ │ Professional Email *                │ │
+    │ │ [________________________]          │ │
+    │ │ Mobile Number *                     │ │
+    │ │ [________________________]          │ │
+    │ │ Current Location                    │ │
+    │ │ [________________________]          │ │
+    │ └─────────────────────────────────────┘ │
+    │                                         │
+    │ ▼ Professional Background               │
+    │ ┌─────────────────────────────────────┐ │
+    │ │ Upload Resume                       │ │
+    │ │ [  📎 Choose File  ]               │ │
+    │ │ ...                                 │ │
+    │ └─────────────────────────────────────┘ │
+    │                                         │
+    │ [        Create Candidate        ]      │
+    └─────────────────────────────────────────┘
+
+  Form Best Practices:
+    - Collapsible sections (accordion) to reduce scroll
+    - "Save" in top app bar for quick access
+    - Sticky bottom button as alternative
+    - Field-level validation with inline error messages
+    - Auto-scroll to first error on submit
+    - Keyboard-appropriate input types (tel, email, number)
+    - Number steppers for salary/experience fields
+    - Native date pickers for date fields
+    - Dropdown as bottom sheet for select fields
+    - Skills: Tag input with add/remove chips
+    - File upload: Native file picker via Tauri
+
+────────────────────────────────────────────────────────────────────────────────
+7.7 DETAIL VIEW (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses 3-column grid. Mobile uses SECTIONED SCROLL VIEW.
+
+  Detail View Structure:
+    ┌─────────────────────────────────────────┐
+    │ ← John Doe                    ✏️  🗑️   │
+    ├─────────────────────────────────────────┤
+    │ ┌─────────────────────────────────────┐ │
+    │ │       John Doe                      │ │
+    │ │    john@example.com                 │ │
+    │ │    +91 9876543210                   │ │
+    │ │    [New]                    📞 Call  │ │
+    │ └─────────────────────────────────────┘ │
+    │                                         │
+    │ Professional Info                       │
+    │ ─────────────────                       │
+    │ Experience:     2.5 years               │
+    │ Company:        TechCorp                │
+    │ Designation:    Software Engineer       │
+    │ Skills:         [Java] [Python] [React] │
+    │                                         │
+    │ Education                               │
+    │ ─────────────────                       │
+    │ Degree:         B.Tech                  │
+    │ University:     MIT                     │
+    │ GPA:            3.8                     │
+    │                                         │
+    │ Resume:         📄 resume.pdf  ⬇️       │
+    │                                         │
+    │ Notes                                   │
+    │ ─────────────────                       │
+    │ [Add Note input field]                  │
+    │ • Note 1 content...        2h ago       │
+    │ • Note 2 content...        1d ago       │
+    └─────────────────────────────────────────┘
+
+  Key Principles:
+    - Hero section at top with key info + status badge
+    - Quick action buttons (Call, Edit) easily accessible
+    - Grouped sections with clear dividers
+    - Labels left-aligned, values right-aligned (or stacked)
+    - Resume as downloadable file row
+
+────────────────────────────────────────────────────────────────────────────────
+7.8 MODAL & DIALOG PATTERNS (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web modals -> Mobile bottom sheets or full-screen dialogs
+
+  DELETE CONFIRMATION:
+    Use native-style alert dialog or bottom sheet:
+    ┌─────────────────────────────────────────┐
+    │ ⚠️ Delete Candidate?                    │
+    │                                         │
+    │ This action cannot be undone.            │
+    │                                         │
+    │        [Cancel]    [Delete]              │
+    └─────────────────────────────────────────┘
+
+  STATUS CHANGE:
+    Bottom sheet with status options:
+    ┌─────────────────────────────────────────┐
+    │ Change Status                           │
+    │ ─────────────                           │
+    │ Current: [New]  →  ?                    │
+    │                                         │
+    │ ○ New                                   │
+    │ ● Contacted                             │
+    │ ○ Call Back Requested                   │
+    │ ○ Screening Completed                   │
+    │ ○ Not Interested                        │
+    │                                         │
+    │ [Cancel]              [Confirm]         │
+    └─────────────────────────────────────────┘
+
+  CALL CONFIRMATION:
+    Dialog with candidate info:
+    ┌─────────────────────────────────────────┐
+    │ 📞 Initiate AI Call?                    │
+    │                                         │
+    │ Name:    John Doe                       │
+    │ Phone:   +91 9876543210                 │
+    │ Company: TechCorp                       │
+    │                                         │
+    │ 🤖 The AI agent will call immediately.  │
+    │                                         │
+    │ [Cancel]           [Start Call]         │
+    └─────────────────────────────────────────┘
+
+  BULK CALL PROGRESS:
+    Full-screen overlay or persistent notification:
+    ┌─────────────────────────────────────────┐
+    │ Bulk Call Progress              [─] [X] │
+    │ ─────────────────                       │
+    │ Status: Running                         │
+    │ ████████████░░░░░░░░  62%               │
+    │ 8/13 completed                          │
+    │                                         │
+    │ ✓ John Doe          Success             │
+    │ ✓ Jane Smith        Success             │
+    │ ✗ Bob Johnson       Failed              │
+    │ ⏳ Alice Williams    Pending             │
+    │ ⏳ ...                                   │
+    │                                         │
+    │ [Cancel Job]                            │
+    └─────────────────────────────────────────┘
+    When minimized -> floating mini-player bar at bottom:
+    ┌─────────────────────────────────────────┐
+    │ 📞 Bulk Call: 62% (8/13)     [▲] [X]   │
+    └─────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────
+7.9 RESUME MATCHER MOBILE ADAPTATION
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses tabs on a single page. Mobile can use:
+
+  OPTION A: Tab bar at top (recommended)
+    ┌─────────────────────────────────────────┐
+    │ ← Resume Matcher                        │
+    ├─────────────────────────────────────────┤
+    │ [Upload] [Job Desc] [Match & Call]       │
+    ├─────────────────────────────────────────┤
+    │                                         │
+    │ (Tab content here)                      │
+    │                                         │
+    └─────────────────────────────────────────┘
+
+  OPTION B: Step-by-step wizard
+    Step 1: Upload Resumes -> Step 2: Manage JDs -> Step 3: Run Matching
+
+  Upload Tab (Mobile):
+    - Large tap target for file selection
+    - Use Tauri file picker for native file selection
+    - Progress bar per file during upload
+    - Text extraction happens on-device before upload
+    - For PDF: use rust-based PDF text extraction (no browser JS)
+    - For DOCX: use rust-based docx parsing (e.g., docx-rs crate)
+
+  Job Descriptions Tab (Mobile):
+    - Form at top: Title input + JD text area
+    - List below: swipe-to-delete JD cards
+    - Each card shows title + skill chips
+
+  Match & Call Tab (Mobile):
+    - JD selector (dropdown or bottom sheet)
+    - Score slider (native range input)
+    - Results as scrollable card list
+    - Each result card: name, scores, skills, call button
+    - "Call All" as prominent action button
+    - Bulk call progress as overlay/sheet
+
+────────────────────────────────────────────────────────────────────────────────
+7.10 STATE MANAGEMENT (DIOXUS)
+────────────────────────────────────────────────────────────────────────────────
+
+  GLOBAL STATE (Context providers):
+    AuthState {
+      token: Signal<Option<String>>,
+      refresh_token: Signal<Option<String>>,
+      user: Signal<Option<User>>,
+      role: Signal<String>,
+      allowed_services: Signal<Vec<String>>,
+      is_super_admin: Signal<bool>,
+    }
+
+    AppState {
+      is_loading: Signal<bool>,
+      toast_message: Signal<Option<Toast>>,
+    }
+
+  PER-SCREEN STATE (local signals):
+    CandidateListState {
+      candidates: Signal<Vec<Candidate>>,
+      filtered: Signal<Vec<Candidate>>,
+      search_query: Signal<String>,
+      status_filter: Signal<Option<String>>,
+      date_from: Signal<Option<NaiveDate>>,
+      date_to: Signal<Option<NaiveDate>>,
+      sort_key: Signal<String>,
+      sort_dir: Signal<SortDir>,
+      page: Signal<usize>,
+      page_size: Signal<usize>,
+      selected_ids: Signal<HashSet<Uuid>>,
+      is_loading: Signal<bool>,
+    }
+
+  AUTH FLOW (Dioxus):
+    - On app start: Check Tauri secure store for tokens
+    - If token exists: Validate by decoding JWT exp claim
+    - If expired: Attempt refresh
+    - If no token/refresh fails: Navigate to Login route
+    - On login success: Store tokens in Tauri secure store
+    - Global HTTP interceptor: Attach bearer token to all requests
+    - On 401: Attempt refresh, retry, or force logout
+
+────────────────────────────────────────────────────────────────────────────────
+7.11 RESPONSIVENESS & PLATFORM CONSIDERATIONS
+────────────────────────────────────────────────────────────────────────────────
+
+  TOUCH TARGETS:
+    - Minimum 44x44 dp touch targets (Apple HIG / Material guidelines)
+    - Action buttons in table -> larger icon buttons on mobile
+    - Spacing between interactive elements: minimum 8dp
+
+  GESTURES:
+    - Pull-to-refresh on list screens
+    - Swipe-to-delete on list items
+    - Swipe-to-edit (optional)
+    - Long press for multi-select mode
+    - Tap outside modal to dismiss
+
+  KEYBOARD:
+    - Auto-dismiss keyboard on scroll
+    - "Next" button to move between form fields
+    - "Done" button to submit form from keyboard
+    - Appropriate keyboard types per field (email, phone, number)
+
+  PLATFORM-SPECIFIC:
+    Android:
+      - Material Design 3 inspired styling
+      - FAB for primary action (Add Candidate)
+      - Bottom navigation bar
+      - Snackbar for toasts (bottom of screen)
+      - Edge-to-edge rendering
+
+    iOS:
+      - iOS-style navigation (large titles, back swipe)
+      - Tab bar at bottom
+      - Action sheets for confirmation dialogs
+      - Safe area insets respected
+      - Haptic feedback on important actions
+
+  OFFLINE CONSIDERATIONS:
+    - Cache last-loaded data in local storage
+    - Show cached data with "offline" indicator
+    - Queue mutations (create/update/delete) for sync when online
+    - Conflict resolution strategy for offline edits
+
+  PERFORMANCE:
+    - Lazy loading for long lists (virtual scroll)
+    - Image/avatar placeholders
+    - Skeleton screens during loading (not just spinners)
+    - Debounce search input (300ms)
+    - Batch API calls where possible
+
+────────────────────────────────────────────────────────────────────────────────
+7.12 FLOATING ACTION BUTTON (FAB) PLACEMENT
+────────────────────────────────────────────────────────────────────────────────
+
+  On list screens, use a FAB for the primary action:
+
+  Candidates List:  FAB = "+" (Add Candidate)
+  Contacts List:    FAB = "+" (Add Contact)
+  Interactions List: FAB = "+" (Add Interaction)
+  Opportunities:    FAB = "+" (Add Opportunity)
+
+  Position: Bottom-right, 16dp from edge, above bottom nav bar
+  Behavior: Hide on scroll down, show on scroll up
+
+────────────────────────────────────────────────────────────────────────────────
+7.13 TOAST NOTIFICATIONS (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses top-right sliding toasts. Mobile should use:
+
+  Android: Snackbar at bottom (above bottom nav)
+    ┌─────────────────────────────────────────┐
+    │ Candidate created successfully     UNDO │
+    └─────────────────────────────────────────┘
+
+  iOS: Banner at top (below status bar)
+    ┌─────────────────────────────────────────┐
+    │ ✓ Candidate created successfully        │
+    └─────────────────────────────────────────┘
+
+  Types (same as web):
+    - Success: Green
+    - Error: Red
+    - Warning: Amber
+    - Info: Blue
+
+  Duration: 3-4 seconds, auto-dismiss
+  Interaction: Tap to dismiss, swipe to dismiss
+
+────────────────────────────────────────────────────────────────────────────────
+7.14 AUTHENTICATION TOKEN STORAGE (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Web uses localStorage. Mobile MUST use secure storage:
+
+  Tauri Plugins:
+    - tauri-plugin-store (encrypted key-value store)
+    - Or platform keychain via tauri-plugin-keychain
+
+  Store Keys:
+    "auth_token" -> JWT access token
+    "refresh_token" -> Refresh token
+    "user_data" -> Serialized User struct (name, role, email)
+
+  Never store tokens in:
+    - Plain text files
+    - SharedPreferences (Android) without encryption
+    - UserDefaults (iOS) without keychain
+
+────────────────────────────────────────────────────────────────────────────────
+7.15 FILE HANDLING (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Resume Upload:
+    - Use Tauri dialog plugin for native file picker
+    - Read file as bytes, encode to base64
+    - For text extraction (Resume Matcher):
+      * Use Rust crates instead of JS libraries
+      * PDF: pdf-extract or lopdf crate
+      * DOCX: docx-rs crate
+    - Show file size and name after selection
+    - Progress indicator during upload
+
+  File Download:
+    - Use Tauri HTTP plugin to download blob
+    - Save to device Downloads folder via Tauri fs plugin
+    - Show "Download complete" notification
+    - Option to open file after download
+
+  Camera/Gallery (future enhancement):
+    - Profile photo upload
+    - Document scan via camera
+
+────────────────────────────────────────────────────────────────────────────────
+7.16 EXPORT FUNCTIONALITY (MOBILE)
+────────────────────────────────────────────────────────────────────────────────
+
+  Excel Export:
+    - Download .xlsx blob from API
+    - Save to device storage
+    - Show "Share" option (Android/iOS share sheet)
+    - Alternative: Open in external app (Excel, Google Sheets)
+
+  PDF Generation (if needed):
+    - Use Rust crate (printpdf) instead of jsPDF
+    - Generate on device, save or share
+
+================================================================================
+  END OF BLUEPRINT
+================================================================================
+
+  DOCUMENT METADATA:
+    Generated:     2026-02-13
+    Source:         E:\codes\RUST\Main INTERVIEW\INTERVIEW\frontend\
+    Total Pages:    25 (estimated web pages analyzed)
+    Total API Endpoints: 38
+    Total Modules:  6 (Dashboard, Candidates, Contacts, Interactions,
+                       Opportunities, Resume Matcher)
+    Target Stack:   Dioxus + Tauri (Mobile)
+
+  NOTES FOR DEVELOPERS:
+    1. All API URLs are relative to API_BASE - configure once in mobile app
+    2. JWT token must be sent as "Bearer {token}" in Authorization header
+    3. The web app uses client-side filtering/sorting - consider server-side
+       for mobile to reduce data transfer
+    4. Phone validation regex for AI calls: /^(\+91|91)\d{10}$/
+    5. Resume file upload is base64 encoded in JSON body (not multipart)
+    6. Bulk call polling interval: 3 seconds
+    7. The web app has no offline support - mobile should add it
+    8. Color theme uses sage green palette - maintain for brand consistency
+    9. All times are ISO 8601 format from the API
+   10. The "Opportunities" module is not in the sidebar nav but is accessible
+       - include it in mobile "More" menu
+
+================================================================================
