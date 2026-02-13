@@ -1,0 +1,14 @@
+{
+  "name": "nuvio369-crm-mobile",
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./input.css -o ./public/tailwind.css --minify",
+    "watch:css": "npx tailwindcss -i ./input.css -o ./public/tailwind.css --watch",
+    "dev": "concurrently \"npm run watch:css\" \"dx serve\"",
+    "build": "npm run build:css && dx build --release"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1",
+    "concurrently": "^8.2.0"
+  }
+}
