@@ -12,6 +12,12 @@ The implementation strictly follows the "Sage Green" design system and provided
 HTML/Tailwind specifications. It features a modern, component-based architecture
 with client-side routing and native-like interactions.
 
+**VERSION 2 UPGRADE (2026-02-13):**
+The codebase has been upgraded to support native Android builds:
+- **Tauri v2**: Replaces v1.5 for full mobile support.
+- **Dioxus 0.7**: Replaces 0.5 for better performance and mobile compatibility.
+- **Android Support**: Added build configurations and scripts for APK generation.
+
 2. HOW IT WORKS
 ────────────────────────────────────────────────────────────────────────────────
 - **Architecture**: The app runs as a Single Page Application (SPA) inside a
@@ -20,9 +26,8 @@ with client-side routing and native-like interactions.
   compiled into `public/tailwind.css` via the Tailwind CLI.
 - **Routing**: `dioxus-router` manages client-side navigation without page
   reloads, mapping URL paths (e.g., `/candidates`) to Dioxus components.
-- **Backend Communication**: While currently using simulated data/placeholders,
-  the stack is configured to communicate with the Rust/Spin backend via HTTP
-  requests (using `reqwest`).
+- **Backend Communication**: Configured to use `reqwest` (v0.12) for API calls.
+- **Mobile Entry**: Uses `src-tauri/src/lib.rs` as the shared mobile entry point.
 
 3. FEATURES & SCREENS IMPLEMENTED
 ────────────────────────────────────────────────────────────────────────────────
@@ -75,21 +80,23 @@ The following 9 core screens have been fully implemented with responsive UI:
 ────────────────────────────────────────────────────────────────────────────────
 
   **Core Frameworks**:
-  - **Dioxus**: v0.5 (Rust UI Framework)
-    - Features: `router`, `web`
-  - **Tauri**: v1.5 (Native Shell)
-    - Features: `api-all`, `custom-protocol`
+  - **Dioxus**: v0.7 (Rust UI Framework)
+    - Features: `router`, `logger`, `launch`, `hooks`, `signals`, `macro`, `html`
+    - Wasm features: `web`, `document`
+  - **Tauri**: v2.0 (Native Shell)
+    - Plugins: `tauri-plugin-shell`
 
   **Rust Crates (Cargo.toml)**:
-  - `dioxus` (0.5): Main UI library.
-  - `dioxus-router` (bundled in dioxus 0.5): Client-side routing.
+  - `dioxus` (0.7): Main UI library.
   - `serde` (1.0): Serialization/Deserialization.
   - `serde_json` (1.0): JSON handling.
   - `chrono` (0.4): Date and time handling.
-  - `reqwest` (0.11): HTTP client for API calls.
-  - `wasm-bindgen` (0.2): Rust-to-JavaScript interoperability.
-  - `gloo-timers` (0.3.0): Timer utilities (used for skeleton simulation).
-  - `console_error_panic_hook` (0.1): Debugging panics in the browser console.
+  - `reqwest` (0.12): HTTP client for API calls.
+  - `tracing` (0.1): Logging.
+  - `getrandom` (0.3): Random number generation (wasm_js support).
+  - `gloo-timers` (0.3): Timer utilities (wasm only).
+  - `gloo-storage` (0.3): Storage utilities (wasm only).
+  - `web-sys` (0.3): Web API bindings (wasm only).
 
   **Frontend Tooling (package.json)**:
   - **Tailwind CSS**: v3.4.1 (Utility-first CSS framework).
@@ -105,12 +112,14 @@ The following 9 core screens have been fully implemented with responsive UI:
   │   └── pages/                # Screen implementations
   │       ├── login.rs
   │       ├── candidates.rs
-  │       ├── opportunities.rs
   │       ├── ... (other screens)
   ├── src-tauri/                # Tauri Backend Configuration
-  │   ├── Cargo.toml            # Backend dependencies
-  │   ├── tauri.conf.json       # App window & security config
-  │   └── src/main.rs           # Native entry point
+  │   ├── Cargo.toml            # Backend dependencies (Tauri v2)
+  │   ├── tauri.conf.json       # App window & security config (v2 schema)
+  │   ├── src/lib.rs            # Mobile entry point
+  │   └── src/main.rs           # Desktop entry point
+  ├── scripts/
+  │   └── build_mobile_v2.ps1   # Android build automation script
   ├── public/                   # Static assets (compiled CSS)
   ├── input.css                 # Tailwind source CSS
   ├── tailwind.config.js        # Theme configuration (Sage Green colors)
@@ -122,6 +131,7 @@ The following 9 core screens have been fully implemented with responsive UI:
   - Rust & Cargo installed.
   - Node.js & npm installed.
   - Dioxus CLI (`cargo install dioxus-cli`).
+  - (For Android) Android SDK, NDK, Java 17+.
 
   **Development**:
   1. Install npm dependencies:
@@ -129,6 +139,11 @@ The following 9 core screens have been fully implemented with responsive UI:
   2. Run development server (starts Dioxus + Tailwind watcher):
      `npm run dev` (or `cargo tauri dev` for native wrapper)
 
-  **Build**:
-  1. Build for production:
-     `npm run build`
+  **Android Build**:
+  1. Ensure Android environment is set up.
+  2. Run the build script:
+     `pwsh scripts/build_mobile_v2.ps1`
+     OR manual steps:
+     - `dx build --platform web --release`
+     - `npm run build:css`
+     - `cd src-tauri && cargo tauri android build`

@@ -3,8 +3,12 @@
   windows_subsystem = "windows"
 )]
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-  tauri::Builder::default()
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+  nuvio369_crm_mobile::run();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // no-op for wasm in the backend crate
 }

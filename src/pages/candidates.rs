@@ -13,7 +13,13 @@ pub fn Candidates() -> Element {
     use_future(move || async move {
         // In a real app, this would be an API call
         // For demonstration, we wait for 2 seconds
+
+        #[cfg(target_arch = "wasm32")]
         gloo_timers::future::TimeoutFuture::new(2000).await;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
         is_loading.set(false);
     });
 
@@ -111,7 +117,7 @@ pub fn Candidates() -> Element {
                         // Candidate Card 1
                         div {
                             class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        onclick: move |_| { navigator.push(Route::CandidateDetails { id: "1".to_string() }); },
+                            onclick: move |_| { navigator.push(Route::CandidateDetails { id: "1".to_string() }); },
                             div { class: "absolute w-1 h-full left-0 top-0 bg-yellow-400" } // Status Indicator Line
                             div {
                                 class: "relative",
@@ -146,7 +152,7 @@ pub fn Candidates() -> Element {
                         // Candidate Card 2
                         div {
                             class: "bg-white dark:bg-white/5 border border-sage-border dark:border-white/10 rounded-2xl p-4 shadow-sm hover:shadow-soft transition-shadow flex items-center gap-4 group cursor-pointer relative overflow-hidden",
-                        onclick: move |_| { navigator.push(Route::CandidateDetails { id: "2".to_string() }); },
+                            onclick: move |_| { navigator.push(Route::CandidateDetails { id: "2".to_string() }); },
                             div { class: "absolute w-1 h-full left-0 top-0 bg-primary" }
                             div {
                                 class: "relative",
