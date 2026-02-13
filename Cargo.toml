@@ -4,14 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { version = "0.5", features = ["router", "web"] }
+dioxus = { version = "0.7", features = ["router", "logger", "launch", "hooks", "signals", "macro", "html"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = "0.4"
-console_error_panic_hook = "0.1"
-reqwest = { version = "0.11", features = ["json"] }
-wasm-bindgen = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tracing = "0.1"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dioxus = { version = "0.7", features = ["web", "document"] }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
+gloo-storage = "0.3"
+web-sys = "0.3"
 
 [profile.release]
 opt-level = "z"
