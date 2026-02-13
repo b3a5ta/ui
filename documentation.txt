@@ -1,0 +1,134 @@
+================================================================================
+  NuViO369 CRM - MOBILE APPLICATION IMPLEMENTATION DOCUMENTATION
+================================================================================
+
+1. IMPLEMENTATION OVERVIEW
+────────────────────────────────────────────────────────────────────────────────
+This project implements the mobile frontend for the NuViO369 CRM (Interview CRM)
+using a hybrid Rust-based stack. The application is built using **Dioxus** for
+the reactive UI and **Tauri** for the native mobile/desktop shell.
+
+The implementation strictly follows the "Sage Green" design system and provided
+HTML/Tailwind specifications. It features a modern, component-based architecture
+with client-side routing and native-like interactions.
+
+2. HOW IT WORKS
+────────────────────────────────────────────────────────────────────────────────
+- **Architecture**: The app runs as a Single Page Application (SPA) inside a
+  Tauri WebView. Dioxus handles the DOM manipulation via WebAssembly (Wasm).
+- **Styling**: Tailwind CSS is used for all styling. The `input.css` file is
+  compiled into `public/tailwind.css` via the Tailwind CLI.
+- **Routing**: `dioxus-router` manages client-side navigation without page
+  reloads, mapping URL paths (e.g., `/candidates`) to Dioxus components.
+- **Backend Communication**: While currently using simulated data/placeholders,
+  the stack is configured to communicate with the Rust/Spin backend via HTTP
+  requests (using `reqwest`).
+
+3. FEATURES & SCREENS IMPLEMENTED
+────────────────────────────────────────────────────────────────────────────────
+The following 9 core screens have been fully implemented with responsive UI:
+
+  1. **Login (Screen 3)**:
+     - Authentication entry point.
+     - Custom "Sage Green" gradient background.
+     - Form validation logic placeholder.
+
+  2. **Candidates List (Screen 1)**:
+     - Scrollable list of candidate cards.
+     - **Feature**: Skeleton Loading Animation (simulates data fetch).
+     - Status indicators and action buttons.
+
+  3. **Opportunities List (Screen 2)**:
+     - Job listings with status tags (Active, Interviewing, Draft).
+     - Search bar and filtering tabs.
+
+  4. **Candidate Details (Screen 6)**:
+     - Comprehensive profile view.
+     - Tabbed interface (Info, History, Notes).
+     - Action bar for calls and emails.
+
+  5. **Interactions History (Screen 4)**:
+     - Timeline view of calls, emails, and meetings.
+     - Visual connector lines (CSS `::before` elements).
+
+  6. **Resume Matcher Upload (Screen 7)**:
+     - Drag-and-drop zone for resumes (PDF/DOCX).
+     - Recent activity list.
+
+  7. **Match Results (Screen 10)**:
+     - AI matching results display.
+     - Score visualization and skill matching tags.
+
+  8. **Contacts List (Screen 8)**:
+     - Alphabetical contact list.
+     - Quick access "Recent" avatars.
+
+  9. **Menu / More (Screen 5)**:
+     - App-wide navigation drawer.
+     - User profile summary and logout.
+
+  **Components**:
+  - `Skeleton`: Reusable loading placeholder component (`src/components/skeleton.rs`).
+  - `Layout`: Implemented per-screen to adhere strictly to the varied designs.
+
+4. TECHNICAL STACK & VERSIONS
+────────────────────────────────────────────────────────────────────────────────
+
+  **Core Frameworks**:
+  - **Dioxus**: v0.5 (Rust UI Framework)
+    - Features: `router`, `web`
+  - **Tauri**: v1.5 (Native Shell)
+    - Features: `api-all`, `custom-protocol`
+
+  **Rust Crates (Cargo.toml)**:
+  - `dioxus` (0.5): Main UI library.
+  - `dioxus-router` (bundled in dioxus 0.5): Client-side routing.
+  - `serde` (1.0): Serialization/Deserialization.
+  - `serde_json` (1.0): JSON handling.
+  - `chrono` (0.4): Date and time handling.
+  - `reqwest` (0.11): HTTP client for API calls.
+  - `wasm-bindgen` (0.2): Rust-to-JavaScript interoperability.
+  - `gloo-timers` (0.3.0): Timer utilities (used for skeleton simulation).
+  - `console_error_panic_hook` (0.1): Debugging panics in the browser console.
+
+  **Frontend Tooling (package.json)**:
+  - **Tailwind CSS**: v3.4.1 (Utility-first CSS framework).
+  - **Concurrently**: v8.2.0 (Runs Dioxus and Tailwind simultaneously during dev).
+
+5. PROJECT STRUCTURE
+────────────────────────────────────────────────────────────────────────────────
+  root/
+  ├── src/                      # Dioxus Frontend Code
+  │   ├── main.rs               # App entry point & Router configuration
+  │   ├── components/           # Reusable UI components
+  │   │   └── skeleton.rs       # Skeleton loading component
+  │   └── pages/                # Screen implementations
+  │       ├── login.rs
+  │       ├── candidates.rs
+  │       ├── opportunities.rs
+  │       ├── ... (other screens)
+  ├── src-tauri/                # Tauri Backend Configuration
+  │   ├── Cargo.toml            # Backend dependencies
+  │   ├── tauri.conf.json       # App window & security config
+  │   └── src/main.rs           # Native entry point
+  ├── public/                   # Static assets (compiled CSS)
+  ├── input.css                 # Tailwind source CSS
+  ├── tailwind.config.js        # Theme configuration (Sage Green colors)
+  └── Cargo.toml                # Frontend dependencies
+
+6. RUNNING THE APPLICATION
+────────────────────────────────────────────────────────────────────────────────
+  **Prerequisites**:
+  - Rust & Cargo installed.
+  - Node.js & npm installed.
+  - Dioxus CLI (`cargo install dioxus-cli`).
+
+  **Development**:
+  1. Install npm dependencies:
+     `npm install`
+  2. Run development server (starts Dioxus + Tailwind watcher):
+     `npm run dev` (or `cargo tauri dev` for native wrapper)
+
+  **Build**:
+  1. Build for production:
+     `npm run build`
