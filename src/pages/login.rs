@@ -2,10 +2,40 @@
 
 use dioxus::prelude::*;
 use crate::Route;
+use crate::services::api::ApiService;
+use crate::models::auth::LoginRequest;
 
 #[component]
 pub fn Login() -> Element {
     let navigator = use_navigator();
+    let mut email = use_signal(|| String::new());
+    let mut password = use_signal(|| String::new());
+    let mut error_msg = use_signal(|| Option::<String>::None);
+    let mut is_loading = use_signal(|| false);
+
+    let mut handle_login = move |_| {
+        is_loading.set(true);
+        error_msg.set(None);
+
+        spawn(async move {
+            let api = ApiService::new();
+            let req = LoginRequest {
+                email: email(),
+                password: password(),
+            };
+
+            match api.login(req).await {
+                Ok(_) => {
+                    is_loading.set(false);
+                    navigator.push(Route::Candidates {});
+                }
+                Err(e) => {
+                    is_loading.set(false);
+                    error_msg.set(Some(e.message));
+                }
+            }
+        });
+    };
 
     rsx! {
         div {
@@ -39,6 +69,18 @@ pub fn Login() -> Element {
                     class: "bg-surface-light dark:bg-surface-dark rounded-2xl shadow-soft p-6 sm:p-8 border border-primary/10 dark:border-primary/20 backdrop-blur-sm",
                     form {
                         class: "space-y-5",
+                        onsubmit: move |evt| {
+                            evt.prevent_default(); // Prevent default form submission
+                            handle_login(());
+                        },
+
+                        // Error Message
+                        if let Some(msg) = error_msg() {
+                            div {
+                                class: "p-3 rounded-lg bg-red-50 text-red-600 text-sm border border-red-100",
+                                "{msg}"
+                            }
+                        }
 
                         // Email Field
                         div {
@@ -56,7 +98,9 @@ pub fn Login() -> Element {
                                     name: "email",
                                     placeholder: "recruiter@company.com",
                                     required: true,
-                                    r#type: "email"
+                                    r#type: "email",
+                                    value: "{email}",
+                                    oninput: move |evt| email.set(evt.value()),
                                 }
                             }
                         }
@@ -77,7 +121,9 @@ pub fn Login() -> Element {
                                     name: "password",
                                     placeholder: "Enter your password",
                                     required: true,
-                                    r#type: "password"
+                                    r#type: "password",
+                                    value: "{password}",
+                                    oninput: move |evt| password.set(evt.value()),
                                 }
                                 div {
                                     class: "absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer",
@@ -95,11 +141,13 @@ pub fn Login() -> Element {
                         // Submit Button
                         button {
                             class: "w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg shadow-md shadow-primary/20 text-sm font-semibold text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-200 transform active:scale-[0.98]",
-                            r#type: "button",
-                            onclick: move |_| {
-                                navigator.push(Route::Candidates {});
-                            },
-                            "Log In"
+                            r#type: "submit",
+                            disabled: "{is_loading}",
+                            if is_loading() {
+                                "Logging in..."
+                            } else {
+                                "Log In"
+                            }
                         }
                     }
                 }

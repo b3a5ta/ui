@@ -2,10 +2,17 @@
 
 use dioxus::prelude::*;
 use crate::Route;
+use crate::services::api::ApiService;
+use crate::components::skeleton::Skeleton;
 
 #[component]
 pub fn Contacts() -> Element {
     let _navigator = use_navigator();
+
+    let contacts_resource = use_resource(move || async move {
+        let api = ApiService::new();
+        api.get_contacts().await
+    });
 
     rsx! {
         div {
@@ -49,55 +56,22 @@ pub fn Contacts() -> Element {
                 main {
                     class: "flex-1 overflow-y-auto hide-scrollbar px-6 pb-24",
 
-                    // Quick Actions / Top Contacts
+                    // Quick Actions / Top Contacts (Static for now)
                     section {
                         class: "mb-6",
                         h3 { class: "text-xs font-semibold uppercase tracking-wider text-text-muted mb-3 ml-1", "Recent" }
                         div {
                             class: "flex space-x-4 overflow-x-auto pb-4 hide-scrollbar -mx-6 px-6",
-                            // Recent Item 1
-                            div {
-                                class: "flex flex-col items-center space-y-2 min-w-[72px]",
-                                div {
-                                    class: "w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-dark p-0.5 shadow-soft",
-                                    div {
-                                        class: "w-full h-full rounded-full border-2 border-white dark:border-surface-dark overflow-hidden relative",
-                                        img {
-                                            alt: "Sarah Connor",
-                                            class: "w-full h-full object-cover",
-                                            src: "https://lh3.googleusercontent.com/aida-public/AB6AXuAKhPEJ8e0KG0NtG1y5YwNV2Kmh0gLAIsEa7Mi3YjtDecfOfEBp1ug4F-RoF25uJiPl_T14WVFxi4d0umelp3g6XWdHwgFmUbSGC5t8VilWQ4tuF4iKGa8mMrUFu2qei01e_O7xim_YeRHElvr4ihRx4HZ4J-1n37CiES88STdbonq7-26E-U2tNbdrLAMHJgkMmJDIAsZ-60K2h8BpMe4izfAKiGSG04HsFjxxV-Pn-Dn5C-nFcR1mrhjrEAOvXZ0wMw9CF-OXQiZV"
-                                        }
-                                    }
-                                }
-                                span { class: "text-xs font-medium text-center truncate w-full", "Sarah" }
-                            }
-                            // Recent Item 2
                             div {
                                 class: "flex flex-col items-center space-y-2 min-w-[72px]",
                                 div {
                                     class: "w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-dark p-0.5 shadow-soft",
                                     div {
                                         class: "w-full h-full rounded-full border-2 border-white dark:border-surface-dark overflow-hidden flex items-center justify-center bg-primary/10",
-                                        span { class: "text-primary font-bold text-lg", "MK" }
+                                        span { class: "text-primary font-bold text-lg", "S" }
                                     }
                                 }
-                                span { class: "text-xs font-medium text-center truncate w-full", "Mike" }
-                            }
-                            // Recent Item 3
-                            div {
-                                class: "flex flex-col items-center space-y-2 min-w-[72px]",
-                                div {
-                                    class: "w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-dark p-0.5 shadow-soft",
-                                    div {
-                                        class: "w-full h-full rounded-full border-2 border-white dark:border-surface-dark overflow-hidden relative",
-                                        img {
-                                            alt: "Julian Reed",
-                                            class: "w-full h-full object-cover",
-                                            src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDnxiKJolMUzdsNjBi2rIlXtZqSqeiC6Ie8kiBHOffzJCuFeqd-l7-VuS6vE_Ll5-woBxlEn9cCJmBfys6bhPH4WEL3Wstdz-n1eu964gtOoIIxIWcrAMEBWRDwGidEOv3ZWKd0bouBdiUVl49URrhtS1i9DgarXp5ObRun5NfzSikMMuAOlnq3G6Dj4mDYL3Fe63riE9JLum6hhY4xPnmF6-QjNzgmat2d6wkBzUo_8hzKc7-WP_VK9BIwmX74Z8QRWL_bzDuQjw87"
-                                        }
-                                    }
-                                }
-                                span { class: "text-xs font-medium text-center truncate w-full", "Julian" }
+                                span { class: "text-xs font-medium text-center truncate w-full", "Sarah" }
                             }
                         }
                     }
@@ -106,180 +80,47 @@ pub fn Contacts() -> Element {
                     div {
                         class: "space-y-6",
 
-                        // Section A
-                        div {
-                            class: "relative",
-                            div {
-                                class: "sticky top-0 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm py-2 z-10 border-b border-gray-100 dark:border-gray-800 mb-2",
-                                span { class: "text-primary font-bold text-sm", "A" }
-                            }
-                            div {
-                                class: "bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800",
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
+                        match &*contacts_resource.read() {
+                            Some(Ok(contacts)) => {
+                                let contacts = contacts.clone();
+                                rsx! {
                                     div {
-                                        class: "h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0 mr-4 group-hover:bg-primary group-hover:text-white transition-colors duration-300",
-                                        "AB"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Alice Brown" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Senior Recruiter" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "TechCorp" }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
-                                    }
-                                }
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
-                                    div {
-                                        class: "h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg shrink-0 mr-4",
-                                        "AD"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Adam Davis" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Hiring Manager" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "Innovate Inc" }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Section B
-                        div {
-                            class: "relative",
-                            div {
-                                class: "sticky top-0 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm py-2 z-10 border-b border-gray-100 dark:border-gray-800 mb-2",
-                                span { class: "text-primary font-bold text-sm", "B" }
-                            }
-                            div {
-                                class: "bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800",
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
-                                    div {
-                                        class: "h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0 mr-4 group-hover:bg-primary group-hover:text-white transition-colors duration-300",
-                                        "BL"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Brian Lee" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "VP of Engineering" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "SoftSystems" }
-                                    }
-                                    div {
-                                        class: "flex items-center space-x-2",
-                                        span { class: "material-icons text-lg text-primary/40", "work_history" }
-                                    }
-                                }
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
-                                    div {
-                                        class: "relative h-12 w-12 shrink-0 mr-4",
-                                        img {
-                                            alt: "Bella Swan",
-                                            class: "h-full w-full rounded-full object-cover",
-                                            src: "https://lh3.googleusercontent.com/aida-public/AB6AXuBh21a959rAmHkWGAUZeNi79Lnw1U1dS9L-RkhnbrtkuO5wdC9F9lIATA1ar8zj9KnC2YBOFwc1EvLSbyi9hI2A8ZKnR91otVBRwkgnGOXOiJZDeHmakqg3UpmMTPjT5qDZTU2C-0GxSYZSRUatH1mbhz6evZ7YMj1YOYw02SwaZT3BD4ACsz4Onypd6DvZKA8ryssnWQMe3k4WSToMviSBqKTFOlsY7JYCerz9zARfnusHiRMm1NDyUHqKaYwncPZvtDwwOw1M5Qmb"
+                                        class: "bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800",
+                                        for contact in contacts {
+                                            div {
+                                                class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
+                                            div {
+                                                class: "h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0 mr-4 group-hover:bg-primary group-hover:text-white transition-colors duration-300",
+                                                "{contact.name.chars().take(2).collect::<String>().to_uppercase()}"
+                                            }
+                                            div {
+                                                class: "flex-1 min-w-0",
+                                                h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "{contact.name}" }
+                                                p { class: "text-xs font-medium text-text-muted truncate", "{contact.job_title.clone().unwrap_or_default()}" }
+                                                p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "{contact.email}" }
+                                            }
+                                            button {
+                                                class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
+                                                span { class: "material-icons text-xl", "chevron_right" }
+                                            }
                                         }
-                                        span { class: "absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white dark:ring-surface-dark" }
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Bella Swan" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Talent Acquisition" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "Global Tech" }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
                                     }
                                 }
-                            }
-                        }
-
-                        // Section C
-                        div {
-                            class: "relative",
-                            div {
-                                class: "sticky top-0 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm py-2 z-10 border-b border-gray-100 dark:border-gray-800 mb-2",
-                                span { class: "text-primary font-bold text-sm", "C" }
-                            }
-                            div {
-                                class: "bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800",
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
+                            }},
+                            Some(Err(err)) => rsx! {
+                                div { class: "text-red-500 text-center p-4", "Error loading contacts: {err.message}" }
+                            },
+                            None => rsx! {
+                                // Skeleton Loaders
+                                for _ in 0..5 {
                                     div {
-                                        class: "h-12 w-12 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400 font-bold text-lg shrink-0 mr-4",
-                                        "CC"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Charlie Carter" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Head of Product" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "Creative Labs" }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Section D
-                        div {
-                            class: "relative",
-                            div {
-                                class: "sticky top-0 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm py-2 z-10 border-b border-gray-100 dark:border-gray-800 mb-2",
-                                span { class: "text-primary font-bold text-sm", "D" }
-                            }
-                            div {
-                                class: "bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-50 dark:divide-gray-800",
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
-                                    div {
-                                        class: "h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0 mr-4 group-hover:bg-primary group-hover:text-white transition-colors duration-300",
-                                        "DA"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "David Anderson" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Technical Lead" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "Streamline" }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
-                                    }
-                                }
-                                // Contact Item
-                                div {
-                                    class: "flex items-center p-4 active:bg-gray-50 dark:active:bg-gray-800 transition-colors cursor-pointer group",
-                                    div {
-                                        class: "h-12 w-12 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 dark:text-orange-400 font-bold text-lg shrink-0 mr-4",
-                                        "DP"
-                                    }
-                                    div {
-                                        class: "flex-1 min-w-0",
-                                        h4 { class: "text-sm font-bold text-text-main dark:text-white truncate", "Diana Prince" }
-                                        p { class: "text-xs font-medium text-text-muted truncate", "Operations Manager" }
-                                        p { class: "text-[10px] text-primary/80 uppercase tracking-wide mt-0.5 truncate", "Logistics Co." }
-                                    }
-                                    button {
-                                        class: "text-gray-300 hover:text-primary dark:text-gray-600 dark:hover:text-primary transition-colors",
-                                        span { class: "material-icons text-xl", "chevron_right" }
+                                        class: "flex items-center p-4",
+                                        Skeleton { width: "w-12", height: "h-12", class: "rounded-full mr-4" }
+                                        div {
+                                            class: "flex-1 space-y-2",
+                                            Skeleton { width: "w-32", height: "h-4", class: "rounded" }
+                                            Skeleton { width: "w-24", height: "h-3", class: "rounded" }
+                                        }
                                     }
                                 }
                             }
