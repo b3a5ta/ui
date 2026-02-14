@@ -4,6 +4,8 @@ use dioxus::prelude::*;
 
 mod components;
 mod pages;
+mod services;
+mod models;
 
 use pages::login::Login;
 use pages::menu::Menu;

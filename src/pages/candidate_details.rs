@@ -2,10 +2,20 @@
 
 use dioxus::prelude::*;
 use crate::Route;
+use crate::services::api::ApiService;
+use crate::components::skeleton::Skeleton;
 
 #[component]
 pub fn CandidateDetails(id: String) -> Element {
     let navigator = use_navigator();
+
+    let candidate_resource = use_resource(move || {
+        let id_clone = id.clone();
+        async move {
+            let api = ApiService::new();
+            api.get_candidate(&id_clone).await
+        }
+    });
 
     rsx! {
         div {
@@ -34,168 +44,142 @@ pub fn CandidateDetails(id: String) -> Element {
                 main {
                     class: "p-4 space-y-4",
 
-                    // Candidate Profile Card
-                    div {
-                        class: "bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-primary/10 p-5 flex flex-col items-center text-center relative overflow-hidden",
-                        // Decorative background blob
-                        div { class: "absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-primary/10 to-transparent" }
-                        div {
-                            class: "relative mt-2",
-                            img {
-                                alt: "Portrait of Sarah Jenkins smiling in professional attire",
-                                class: "w-24 h-24 rounded-full object-cover border-4 border-surface-light dark:border-surface-dark shadow-md",
-                                src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDYLniJN5R1ymXTMr1Awg6cwU_o0WfyRE5KDAOgJ0ldLrLn1VQVPlWxmmA3XUXFOoTeRQIwdWfUGkjsj9QdbFfKdzqgzFZjO0NzqGQtqiMqGzk5nbvRrowzw7vXkhnkkNioyuONBIXlWDRMOsbd45ie46B0sptF_NESWUNryO93mRB364VsyPTY4Jjl3t4o-7zjSb8oKJ0Ibqe_SYuT9hKZ71vWUvn-m7AG9unyhGlDw-OA8cVjs2faKnbz_0SdLCw87wF4cH7iany3"
-                            }
-                            span { class: "absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-2 border-surface-light dark:border-surface-dark rounded-full" }
-                        }
-                        h2 { class: "mt-3 text-xl font-bold text-gray-900 dark:text-white", "Sarah Jenkins" }
-                        p { class: "text-sm text-gray-500 dark:text-gray-400 font-medium", "Senior UX Designer" }
-                        div {
-                            class: "mt-3 flex items-center gap-2",
-                            span {
-                                class: "px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20",
-                                "Interviewing"
-                            }
-                            span {
-                                class: "px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 text-xs font-medium rounded-full",
-                                "Remote"
-                            }
-                        }
-                    }
-
-                    // Primary Action Bar
-                    div {
-                        class: "grid grid-cols-4 gap-3",
-                        button {
-                            class: "col-span-3 bg-primary hover:bg-primary/90 text-white font-semibold py-3 px-4 rounded-lg shadow-sm shadow-primary/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
-                            span { class: "material-icons-round text-xl", "phone_in_talk" }
-                            " Call Confirmation"
-                        }
-                        button {
-                            class: "col-span-1 bg-surface-light dark:bg-surface-dark text-primary border border-primary/20 hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors",
-                            onclick: move |_| { navigator.push(Route::Interactions {}); }, // Link to Interactions
-                            span { class: "material-icons-round text-2xl", "mail_outline" }
-                        }
-                    }
-
-                    // Tabs
-                    div {
-                        class: "bg-surface-light dark:bg-surface-dark p-1 rounded-lg border border-primary/10 flex",
-                        button { class: "flex-1 py-2 text-sm font-semibold rounded-md bg-primary text-white shadow-sm transition-all", "Info" }
-                        button {
-                            class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors",
-                            onclick: move |_| { navigator.push(Route::Interactions {}); }, // Link to History
-                            "History"
-                        }
-                        button { class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors", "Notes" }
-                    }
-
-                    // Content Area (Active Tab: Info)
-                    div {
-                        class: "space-y-4",
-
-                        // Contact Info
-                        div {
-                            class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
-                            h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 opacity-70", "Contact Information" }
-                            div {
-                                class: "space-y-4",
+                    match &*candidate_resource.read() {
+                        Some(Ok(candidate)) => {
+                            let candidate = candidate.clone();
+                            rsx! {
+                                // Candidate Profile Card
                                 div {
-                                    class: "flex items-start gap-3",
+                                    class: "bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-primary/10 p-5 flex flex-col items-center text-center relative overflow-hidden",
+                                    // Decorative background blob
+                                    div { class: "absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-primary/10 to-transparent" }
                                     div {
-                                        class: "p-2 bg-primary/10 rounded-lg text-primary",
-                                        span { class: "material-icons-round text-lg", "call" }
+                                        class: "relative mt-2",
+                                        // Using a placeholder/initials if no image
+                                        div {
+                                            class: "w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-3xl font-bold text-gray-500 border-4 border-surface-light dark:border-surface-dark shadow-md",
+                                            "{candidate.name.chars().next().unwrap_or('?')}"
+                                        }
+                                        span { class: "absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-2 border-surface-light dark:border-surface-dark rounded-full" }
                                     }
+                                    h2 { class: "mt-3 text-xl font-bold text-gray-900 dark:text-white", "{candidate.name}" }
+                                    p { class: "text-sm text-gray-500 dark:text-gray-400 font-medium", "{candidate.current_designation.clone().unwrap_or_default()}" }
                                     div {
-                                        p { class: "text-xs text-gray-400 font-medium", "Mobile" }
-                                        p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "+1 (555) 012-3456" }
+                                        class: "mt-3 flex items-center gap-2",
+                                        span {
+                                            class: "px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20",
+                                            "{candidate.status}"
+                                        }
+                                        if let Some(loc) = &candidate.location {
+                                            span {
+                                                class: "px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 text-xs font-medium rounded-full",
+                                                "{loc}"
+                                            }
+                                        }
                                     }
                                 }
-                                div {
-                                    class: "flex items-start gap-3",
-                                    div {
-                                        class: "p-2 bg-primary/10 rounded-lg text-primary",
-                                        span { class: "material-icons-round text-lg", "email" }
-                                    }
-                                    div {
-                                        p { class: "text-xs text-gray-400 font-medium", "Email" }
-                                        p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "sarah.j@example.com" }
-                                    }
-                                }
-                                div {
-                                    class: "flex items-start gap-3",
-                                    div {
-                                        class: "p-2 bg-primary/10 rounded-lg text-primary",
-                                        span { class: "material-icons-round text-lg", "language" }
-                                    }
-                                    div {
-                                        p { class: "text-xs text-gray-400 font-medium", "LinkedIn" }
-                                        p { class: "text-sm font-semibold text-primary", "linkedin.com/in/sarahjenkins" }
-                                    }
-                                }
-                            }
-                        }
 
-                        // Skills
-                        div {
-                            class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
-                            h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3 opacity-70", "Top Skills" }
-                            div {
-                                class: "flex flex-wrap gap-2",
-                                span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "Figma" }
-                                span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "User Research" }
-                                span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "Prototyping" }
-                                span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "Design Systems" }
-                                span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "HTML/CSS" }
-                            }
-                        }
-
-                        // Documents
-                        div {
-                            class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
-                            div {
-                                class: "flex items-center justify-between mb-4",
-                                h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider opacity-70", "Documents" }
-                                button { class: "text-primary text-xs font-bold hover:underline", "View All" }
-                            }
-                            div {
-                                class: "flex items-center justify-between p-3 border border-gray-100 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group",
+                                // Primary Action Bar
                                 div {
-                                    class: "flex items-center gap-3",
-                                    div {
-                                        class: "w-10 h-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center",
-                                        span { class: "material-icons-round", "picture_as_pdf" }
+                                    class: "grid grid-cols-4 gap-3",
+                                    button {
+                                        class: "col-span-3 bg-primary hover:bg-primary/90 text-white font-semibold py-3 px-4 rounded-lg shadow-sm shadow-primary/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
+                                        span { class: "material-icons-round text-xl", "phone_in_talk" }
+                                        " Call Confirmation"
                                     }
-                                    div {
-                                        p { class: "text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors", "Resume_Sarah_v2.pdf" }
-                                        p { class: "text-xs text-gray-400", "Added 2 days ago • 1.2 MB" }
+                                    button {
+                                        class: "col-span-1 bg-surface-light dark:bg-surface-dark text-primary border border-primary/20 hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors",
+                                        onclick: move |_| { navigator.push(Route::Interactions {}); },
+                                        span { class: "material-icons-round text-2xl", "mail_outline" }
                                     }
                                 }
-                                span { class: "material-icons-round text-gray-300 group-hover:text-primary", "download" }
-                            }
-                        }
 
-                        // Recent Activity Preview
-                        div {
-                            class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
-                            div {
-                                class: "flex items-center justify-between mb-4",
-                                h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider opacity-70", "Recent Activity" }
-                            }
-                            div {
-                                class: "relative pl-4 border-l-2 border-primary/20 space-y-6",
+                                // Tabs
                                 div {
-                                    class: "relative",
-                                    div { class: "absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary border-2 border-white dark:border-surface-dark" }
-                                    p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "Phone Screening Completed" }
-                                    p { class: "text-xs text-gray-500 mt-1", "Yesterday by Mike Ross" }
+                                    class: "bg-surface-light dark:bg-surface-dark p-1 rounded-lg border border-primary/10 flex",
+                                    button { class: "flex-1 py-2 text-sm font-semibold rounded-md bg-primary text-white shadow-sm transition-all", "Info" }
+                                    button {
+                                        class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors",
+                                        onclick: move |_| { navigator.push(Route::Interactions {}); },
+                                        "History"
+                                    }
+                                    button { class: "flex-1 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors", "Notes" }
                                 }
+
+                                // Content Area (Active Tab: Info)
                                 div {
-                                    class: "relative",
-                                    div { class: "absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-gray-300 border-2 border-white dark:border-surface-dark" }
-                                    p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "Application Received" }
-                                    p { class: "text-xs text-gray-500 mt-1", "2 days ago via LinkedIn" }
+                                    class: "space-y-4",
+
+                                    // Contact Info
+                                    div {
+                                        class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
+                                        h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 opacity-70", "Contact Information" }
+                                        div {
+                                            class: "space-y-4",
+                                            div {
+                                                class: "flex items-start gap-3",
+                                                div {
+                                                    class: "p-2 bg-primary/10 rounded-lg text-primary",
+                                                    span { class: "material-icons-round text-lg", "call" }
+                                                }
+                                                div {
+                                                    p { class: "text-xs text-gray-400 font-medium", "Mobile" }
+                                                    p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "{candidate.phone}" }
+                                                }
+                                            }
+                                            div {
+                                                class: "flex items-start gap-3",
+                                                div {
+                                                    class: "p-2 bg-primary/10 rounded-lg text-primary",
+                                                    span { class: "material-icons-round text-lg", "email" }
+                                                }
+                                                div {
+                                                    p { class: "text-xs text-gray-400 font-medium", "Email" }
+                                                    p { class: "text-sm font-semibold text-gray-800 dark:text-gray-200", "{candidate.email}" }
+                                                }
+                                            }
+                                            if let Some(linkedin) = &candidate.linkedin_url {
+                                                div {
+                                                    class: "flex items-start gap-3",
+                                                    div {
+                                                        class: "p-2 bg-primary/10 rounded-lg text-primary",
+                                                        span { class: "material-icons-round text-lg", "language" }
+                                                    }
+                                                    div {
+                                                        p { class: "text-xs text-gray-400 font-medium", "LinkedIn" }
+                                                        p { class: "text-sm font-semibold text-primary truncate w-64", "{linkedin}" }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Skills
+                                    if let Some(skills) = &candidate.skills {
+                                        div {
+                                            class: "bg-surface-light dark:bg-surface-dark rounded-xl p-5 shadow-sm border border-primary/5",
+                                            h3 { class: "text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-3 opacity-70", "Top Skills" }
+                                            div {
+                                                class: "flex flex-wrap gap-2",
+                                                for skill in skills {
+                                                    span { class: "px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium", "{skill}" }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
+                            }},
+                        Some(Err(err)) => rsx! {
+                            div { class: "text-red-500 text-center p-4", "Error loading details: {err.message}" }
+                        },
+                        None => rsx! {
+                            // Loading Skeleton
+                            div {
+                                class: "p-5 flex flex-col items-center",
+                                Skeleton { width: "w-24", height: "h-24", class: "rounded-full mb-4" }
+                                Skeleton { width: "w-48", height: "h-6", class: "mb-2" }
+                                Skeleton { width: "w-32", height: "h-4", class: "mb-4" }
+                                Skeleton { width: "w-full", height: "h-32", class: "rounded-xl mt-4" }
                             }
                         }
                     }

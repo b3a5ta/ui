@@ -11,6 +11,7 @@ chrono = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 tracing = "0.1"
 getrandom = { version = "0.3", features = ["wasm_js"] }
+gloo-storage = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 dioxus = { version = "0.7", features = ["web", "document"] }
